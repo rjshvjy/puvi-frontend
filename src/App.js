@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import QualityCheck from './QualityCheck';
+import MaterialWriteoff from './MaterialWriteoff';
 
 function App() {
-  const [currentModule, setCurrentModule] = useState('purchase'); // 'purchase' or 'quality'
+  const [currentModule, setCurrentModule] = useState('purchase'); // 'purchase' or 'writeoff'
   const [materials, setMaterials] = useState([]);
   const [formData, setFormData] = useState({
     material_id: '',
@@ -115,19 +115,19 @@ function App() {
               Purchase Input
             </button>
             <button
-              onClick={() => setCurrentModule('quality')}
+              onClick={() => setCurrentModule('writeoff')}
               style={{
                 padding: '10px 20px',
-                backgroundColor: currentModule === 'quality' ? '#007BFF' : 'transparent',
+                backgroundColor: currentModule === 'writeoff' ? '#dc3545' : 'transparent',
                 color: 'white',
-                border: '1px solid #007BFF',
+                border: '1px solid #dc3545',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 fontSize: '16px',
-                fontWeight: currentModule === 'quality' ? 'bold' : 'normal'
+                fontWeight: currentModule === 'writeoff' ? 'bold' : 'normal'
               }}
             >
-              Quality Check
+              Material Write-off
             </button>
           </div>
         </div>
@@ -355,7 +355,7 @@ function App() {
           </div>
         </div>
       ) : (
-        <QualityCheck />
+        <MaterialWriteoff />
       )}
     </div>
   );
