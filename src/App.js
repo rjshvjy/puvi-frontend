@@ -18,6 +18,22 @@ function App() {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Function to format date from YYYY-MM-DD to DD-MM-YYYY for display
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
+  // Function to get today's date in DD-MM-YYYY format
+  const getTodayFormatted = () => {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   useEffect(() => {
     axios.get('https://puvi-backend.onrender.com/api/materials')
       .then(res => setMaterials(res.data))
