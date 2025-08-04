@@ -1,7 +1,7 @@
 /* src/modules/Purchase/Purchase.css */
 
 .purchase-module {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -60,15 +60,37 @@
   margin: 0 0 20px 0;
 }
 
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
 }
 
-.form-row:last-child {
-  margin-bottom: 0;
+.section-header h3 {
+  margin: 0;
+}
+
+.add-button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-button:hover {
+  background-color: #218838;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .form-group {
@@ -89,7 +111,7 @@
   border: 1px solid #ced4da;
   border-radius: 4px;
   font-size: 16px;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  transition: border-color 0.15s ease-in-out;
 }
 
 .form-group input:focus,
@@ -99,16 +121,143 @@
   box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 }
 
-.form-group input[type="number"] {
-  -moz-appearance: textfield;
+/* Items Table */
+.items-table {
+  overflow-x: auto;
+  margin-top: 20px;
 }
 
-.form-group input[type="number"]::-webkit-outer-spin-button,
-.form-group input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+.items-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
 
+.items-table th {
+  background-color: #f8f9fa;
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.items-table td {
+  padding: 8px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.items-table input,
+.items-table select {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+.items-table input[type="number"] {
+  text-align: right;
+}
+
+.items-table .readonly {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+}
+
+.items-table .unit {
+  text-align: center;
+  font-weight: 500;
+}
+
+.items-table .amount {
+  text-align: right;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.items-table .total {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.remove-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.remove-button:hover {
+  background-color: #c82333;
+}
+
+/* Transport & Handling Allocation */
+.allocation-settings {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.allocation-settings h4 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-size: 16px;
+}
+
+.uom-groups {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.uom-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uom-group label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.uom-group input {
+  width: 60px;
+  padding: 6px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.total-percentage {
+  margin-left: auto;
+  font-weight: 600;
+  padding: 6px 12px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+.total-percentage.error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.error-text {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* Summary Section */
 .cost-summary {
   background-color: #f8f9fa;
   padding: 25px;
@@ -123,7 +272,7 @@
 }
 
 .summary-grid {
-  max-width: 500px;
+  max-width: 400px;
   margin: 0 auto;
 }
 
@@ -132,11 +281,12 @@
   justify-content: space-between;
   padding: 8px 0;
   color: #495057;
+  font-size: 16px;
 }
 
 .summary-row.total {
   font-weight: 600;
-  font-size: 18px;
+  font-size: 20px;
   color: #2c3e50;
   border-top: 2px solid #dee2e6;
   margin-top: 10px;
@@ -172,19 +322,30 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-  
   .purchase-module {
     padding: 10px;
   }
   
   .form-section {
-    padding: 20px;
+    padding: 15px;
   }
   
-  .summary-grid {
-    max-width: 100%;
+  .items-table {
+    font-size: 12px;
+  }
+  
+  .items-table th,
+  .items-table td {
+    padding: 4px;
+  }
+  
+  .uom-groups {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .total-percentage {
+    margin-left: 0;
+    margin-top: 10px;
   }
 }
