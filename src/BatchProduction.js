@@ -67,20 +67,29 @@ const BatchProduction = () => {
     }
   };
 
+  // Helper function to safely parse numeric values
+  const safeParseFloat = (value, defaultValue = 0) => {
+    if (value === null || value === undefined || value === '') {
+      return defaultValue;
+    }
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+  };
+
   // Calculate derived values
   const calculateDryingLoss = () => {
-    const before = parseFloat(batchData.seed_quantity_before_drying) || 0;
-    const after = parseFloat(batchData.seed_quantity_after_drying) || 0;
+    const before = safeParseFloat(batchData.seed_quantity_before_drying);
+    const after = safeParseFloat(batchData.seed_quantity_after_drying);
     const loss = before - after;
     const lossPercent = before > 0 ? (loss / before * 100) : 0;
     return { loss, lossPercent };
   };
 
   const calculateYieldPercentages = () => {
-    const after = parseFloat(batchData.seed_quantity_after_drying) || 0;
-    const oil = parseFloat(batchData.oil_yield) || 0;
-    const cake = parseFloat(batchData.cake_yield) || 0;
-    const sludge = parseFloat(batchData.sludge_yield) || 0;
+    const after = safeParseFloat(batchData.seed_quantity_after_drying);
+    const oil = safeParseFloat(batchData.oil_yield);
+    const cake = safeParseFloat(batchData.cake_yield);
+    const sludge = safeParseFloat(batchData.sludge_yield);
     
     return {
       oilPercent: after > 0 ? (oil / after * 100) : 0,
@@ -93,7 +102,7 @@ const BatchProduction = () => {
   const calculateCosts = () => {
     if (!selectedSeed) return null;
     
-    const seedQty = parseFloat(batchData.seed_quantity_before_drying) || 0;
+    const seedQty = safeParseFloat(batchData.seed_quantity_before_drying);
     const seedCost = seedQty * selectedSeed.weighted_avg_cost;
     
     let totalCost = seedCost;
@@ -102,7 +111,16 @@ const BatchProduction = () => {
     // Calculate cost for each element
     costElements.forEach(element => {
       let quantity = 0;
-      let rate = batchData.cost_overrides[element.element_id] || element.default_rate;
+      
+      // Check if there's an override value
+      const overrideValue = batchData.cost_overrides[element.element_id];
+      // Use override if it exists and is not empty/null, otherwise use default
+      let rate;
+      if (overrideValue !== null && overrideValue !== undefined && overrideValue !== '') {
+        rate = safeParseFloat(overrideValue);
+      } else {
+        rate = element.default_rate;
+      }
       
       // Determine quantity based on calculation method
       if (element.unit_type === 'Per Kg') {
@@ -118,18 +136,20 @@ const BatchProduction = () => {
       costDetails.push({
         element_name: element.element_name,
         master_rate: element.default_rate,
-        override_rate: batchData.cost_overrides[element.element_id],
+        override_rate: overrideValue !== null && overrideValue !== undefined && overrideValue !== '' 
+          ? safeParseFloat(overrideValue) 
+          : element.default_rate,
         quantity: quantity,
         total_cost: cost
       });
     });
     
     // Calculate revenues
-    const cakeRevenue = (parseFloat(batchData.cake_yield) || 0) * (parseFloat(batchData.cake_estimated_rate) || 0);
-    const sludgeRevenue = (parseFloat(batchData.sludge_yield) || 0) * (parseFloat(batchData.sludge_estimated_rate) || 0);
+    const cakeRevenue = safeParseFloat(batchData.cake_yield) * safeParseFloat(batchData.cake_estimated_rate);
+    const sludgeRevenue = safeParseFloat(batchData.sludge_yield) * safeParseFloat(batchData.sludge_estimated_rate);
     
     const netOilCost = totalCost - cakeRevenue - sludgeRevenue;
-    const oilQty = parseFloat(batchData.oil_yield) || 0;
+    const oilQty = safeParseFloat(batchData.oil_yield);
     const perKgOilCost = oilQty > 0 ? netOilCost / oilQty : 0;
     
     return {
@@ -162,20 +182,48 @@ const BatchProduction = () => {
     }
   };
 
+  // Clean and validate data before submission
+  const prepareDataForSubmission = () => {
+    const cleanedData = { ...batchData };
+    
+    // Clean numeric fields - convert empty strings to proper values
+    const numericFields = [
+      'seed_quantity_before_drying',
+      'seed_quantity_after_drying',
+      'oil_yield',
+      'cake_yield',
+      'sludge_yield',
+      'cake_estimated_rate',
+      'sludge_estimated_rate'
+    ];
+    
+    numericFields.forEach(field => {
+      if (cleanedData[field] === '' || cleanedData[field] === null || cleanedData[field] === undefined) {
+        cleanedData[field] = '0';
+      }
+    });
+    
+    return cleanedData;
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setMessage('');
     
     try {
       const costs = calculateCosts();
+      const cleanedBatchData = prepareDataForSubmission();
       
       const payload = {
-        ...batchData,
+        ...cleanedBatchData,
         seed_cost_total: costs.seedCost,
         cost_details: costs.costDetails,
         estimated_cake_revenue: costs.cakeRevenue,
         estimated_sludge_revenue: costs.sludgeRevenue
       };
+      
+      // Debug logging
+      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
       
       const response = await axios.post('https://puvi-backend.onrender.com/api/add_batch', payload);
       
@@ -200,6 +248,8 @@ const BatchProduction = () => {
         setCurrentStep(1);
       }
     } catch (error) {
+      console.error('Error submitting batch:', error);
+      console.error('Error response:', error.response?.data);
       setMessage(`❌ Error: ${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
@@ -505,11 +555,12 @@ const BatchProduction = () => {
             <div style={{
               marginBottom: '20px',
               padding: '15px',
-              backgroundColor: yields.totalPercent > 100 ? '#f8d7da' : '#d4edda',
+              backgroundColor: yields.totalPercent > 110 ? '#f8d7da' : yields.totalPercent > 105 ? '#fff3cd' : '#d4edda',
               borderRadius: '5px'
             }}>
               <strong>Total Yield:</strong> {yields.totalPercent.toFixed(2)}%
-              {yields.totalPercent > 100 && ' (Warning: Exceeds 100%)'}
+              {yields.totalPercent > 110 && ' (Warning: Unusually high yield - please verify)'}
+              {yields.totalPercent > 100 && yields.totalPercent <= 110 && ' (Includes processing additions)'}
             </div>
           )}
           
@@ -586,13 +637,27 @@ const BatchProduction = () => {
                       <input
                         type="number"
                         value={batchData.cost_overrides[element.element_id] || ''}
-                        onChange={e => setBatchData({
-                          ...batchData,
-                          cost_overrides: {
-                            ...batchData.cost_overrides,
-                            [element.element_id]: e.target.value
+                        onChange={e => {
+                          const value = e.target.value;
+                          setBatchData({
+                            ...batchData,
+                            cost_overrides: {
+                              ...batchData.cost_overrides,
+                              [element.element_id]: value === '' ? null : value
+                            }
+                          });
+                        }}
+                        onBlur={e => {
+                          // Clean up on blur - remove if empty
+                          if (e.target.value === '') {
+                            const newOverrides = { ...batchData.cost_overrides };
+                            delete newOverrides[element.element_id];
+                            setBatchData({
+                              ...batchData,
+                              cost_overrides: newOverrides
+                            });
                           }
-                        })}
+                        }}
                         placeholder={element.default_rate.toString()}
                         style={{ width: '80px', padding: '5px', border: '1px solid #ced4da', borderRadius: '3px' }}
                       />
