@@ -16,23 +16,18 @@ const apiClient = axios.create({
 // Response interceptor to handle the standardized response format
 apiClient.interceptors.response.use(
   (response) => {
-    // New backend format: { success: true/false, data: {...}, error: "...", count: n, summary: {...} }
-    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
-      if (response.data.success) {
-        // Return the actual data for successful responses
-        return response.data;
-      } else {
-        // Throw error for unsuccessful responses
-        return Promise.reject(new Error(response.data.error || 'Request failed'));
-      }
-    }
-    // If response doesn't have our expected format, return as is
+    // Backend returns: { success: true/false, ...otherData }
+    // We'll return the full response data, letting components handle it
     return response.data;
   },
   (error) => {
     // Handle network errors or other axios errors
-    if (error.response && error.response.data && error.response.data.error) {
-      return Promise.reject(new Error(error.response.data.error));
+    if (error.response && error.response.data) {
+      // If backend sent an error response
+      if (error.response.data.error) {
+        return Promise.reject(new Error(error.response.data.error));
+      }
+      return Promise.reject(error);
     }
     return Promise.reject(error);
   }
@@ -42,7 +37,7 @@ apiClient.interceptors.response.use(
 const api = {
   // Purchase Module
   purchase: {
-    getMaterials: () => apiClient.get('/api/materials'),
+    getMaterials: (params) => apiClient.get('/api/materials', { params }),
     addPurchase: (data) => apiClient.post('/api/add_purchase', data),
     getPurchaseHistory: (params) => apiClient.get('/api/purchase_history', { params }),
     getSuppliers: () => apiClient.get('/api/suppliers'),
