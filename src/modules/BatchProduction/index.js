@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
+import './BatchProduction.css';
 
 const BatchProduction = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -36,9 +37,9 @@ const BatchProduction = () => {
 
   const fetchAvailableSeeds = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/seeds_for_batch');
-      if (response.data.success) {
-        setAvailableSeeds(response.data.seeds);
+      const response = await api.batch.getSeedsForBatch();
+      if (response.success) {
+        setAvailableSeeds(response.seeds);
       }
     } catch (error) {
       console.error('Error fetching seeds:', error);
@@ -47,9 +48,9 @@ const BatchProduction = () => {
 
   const fetchCostElements = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/cost_elements_for_batch');
-      if (response.data.success) {
-        setCostElements(response.data.cost_elements);
+      const response = await api.batch.getCostElementsForBatch();
+      if (response.success) {
+        setCostElements(response.cost_elements);
       }
     } catch (error) {
       console.error('Error fetching cost elements:', error);
@@ -58,9 +59,9 @@ const BatchProduction = () => {
 
   const fetchOilCakeRates = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/oil_cake_rates');
-      if (response.data.success) {
-        setOilCakeRates(response.data.rates);
+      const response = await api.batch.getOilCakeRates();
+      if (response.success) {
+        setOilCakeRates(response.rates);
       }
     } catch (error) {
       console.error('Error fetching oil cake rates:', error);
@@ -225,10 +226,10 @@ const BatchProduction = () => {
       // Debug logging
       console.log('Payload being sent:', JSON.stringify(payload, null, 2));
       
-      const response = await axios.post('https://puvi-backend.onrender.com/api/add_batch', payload);
+      const response = await api.batch.addBatch(payload);
       
-      if (response.data.success) {
-        setMessage(`✅ Batch ${response.data.batch_code} created successfully! Oil cost: ₹${response.data.oil_cost_per_kg.toFixed(2)}/kg`);
+      if (response.success) {
+        setMessage(`✅ Batch ${response.batch_code} created successfully! Oil cost: ₹${response.oil_cost_per_kg.toFixed(2)}/kg`);
         // Reset form
         setBatchData({
           oil_type: '',
@@ -249,8 +250,7 @@ const BatchProduction = () => {
       }
     } catch (error) {
       console.error('Error submitting batch:', error);
-      console.error('Error response:', error.response?.data);
-      setMessage(`❌ Error: ${error.response?.data?.error || error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
