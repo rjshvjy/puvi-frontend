@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
+import './MaterialWriteoff.css';
 
 const MaterialWriteoff = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -30,9 +31,9 @@ const MaterialWriteoff = () => {
 
   const fetchInventoryItems = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/inventory_for_writeoff');
-      if (response.data.success) {
-        setInventoryItems(response.data.inventory_items);
+      const response = await api.writeoff.getInventoryForWriteoff();
+      if (response.success) {
+        setInventoryItems(response.inventory_items);
       }
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -42,8 +43,8 @@ const MaterialWriteoff = () => {
 
   const fetchWriteoffReasons = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/writeoff_reasons');
-      setWriteoffReasons(response.data);
+      const response = await api.writeoff.getWriteoffReasons();
+      setWriteoffReasons(response);
     } catch (error) {
       console.error('Error fetching writeoff reasons:', error);
     }
@@ -51,10 +52,10 @@ const MaterialWriteoff = () => {
 
   const fetchWriteoffHistory = async () => {
     try {
-      const response = await axios.get('https://puvi-backend.onrender.com/api/writeoff_history');
-      if (response.data.success) {
-        setWriteoffHistory(response.data.writeoffs);
-        setSummary(response.data.summary);
+      const response = await api.writeoff.getWriteoffHistory();
+      if (response.success) {
+        setWriteoffHistory(response.writeoffs);
+        setSummary(response.summary);
       }
     } catch (error) {
       console.error('Error fetching writeoff history:', error);
@@ -123,16 +124,16 @@ const MaterialWriteoff = () => {
     setMessage('');
 
     try {
-      const response = await axios.post('https://puvi-backend.onrender.com/api/add_writeoff', {
+      const response = await api.writeoff.addWriteoff({
         ...writeoffData,
         material_id: selectedMaterial.material_id
       });
 
-      if (response.data.success) {
+      if (response.success) {
         setMessage(`✅ Writeoff recorded successfully! 
-          Written off: ${response.data.quantity_written_off} ${selectedMaterial.unit}
-          Net Loss: ₹${response.data.net_loss.toFixed(2)}
-          New Balance: ${response.data.new_stock_balance} ${selectedMaterial.unit}`);
+          Written off: ${response.quantity_written_off} ${selectedMaterial.unit}
+          Net Loss: ₹${response.net_loss.toFixed(2)}
+          New Balance: ${response.new_stock_balance} ${selectedMaterial.unit}`);
         
         // Reset form
         setSelectedMaterial(null);
@@ -150,10 +151,10 @@ const MaterialWriteoff = () => {
         fetchInventoryItems();
         fetchWriteoffHistory();
       } else {
-        setMessage(`❌ Error: ${response.data.error || 'Failed to record writeoff'}`);
+        setMessage(`❌ Error: ${response.error || 'Failed to record writeoff'}`);
       }
     } catch (error) {
-      setMessage(`❌ Error: ${error.response?.data?.error || error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
