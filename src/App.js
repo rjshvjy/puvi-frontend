@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
 import Purchase from './modules/Purchase';
-import MaterialWriteoff from './MaterialWriteoff';
-import BatchProduction from './BatchProduction';
+import MaterialWriteoff from './modules/MaterialWriteoff';
+import BatchProduction from './modules/BatchProduction';
 
 function App() {
   const [activeModule, setActiveModule] = useState('info');
@@ -87,8 +87,8 @@ function App() {
           <h3>System Status</h3>
           <ul>
             <li>✅ Purchase Module - Modularized</li>
-            <li>⏳ Material Writeoff - To be modularized</li>
-            <li>⏳ Batch Production - To be modularized</li>
+            <li>✅ Material Writeoff - Modularized</li>
+            <li>✅ Batch Production - Modularized</li>
             <li>📋 Material Sales - To be implemented</li>
           </ul>
         </div>
