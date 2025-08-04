@@ -38,12 +38,6 @@ const Purchase = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedSupplier) {
-      fetchMaterialsForSupplier(selectedSupplier);
-    }
-  }, [selectedSupplier]);
-
-  useEffect(() => {
     // Recalculate transport/handling allocation when items or percentages change
     allocateCharges();
   }, [items, invoiceData.transport_cost, invoiceData.handling_charges, uomGroups]);
@@ -70,6 +64,7 @@ const Purchase = () => {
     const supplierId = e.target.value;
     setSelectedSupplier(supplierId);
     setInvoiceData({ ...invoiceData, supplier_id: supplierId });
+    
     // Reset items when supplier changes
     setItems([{
       material_id: '',
@@ -79,6 +74,13 @@ const Purchase = () => {
       transport_charges: '0',
       handling_charges: '0'
     }]);
+    
+    // Clear materials first, then fetch if supplier selected
+    setMaterials([]);
+    
+    if (supplierId) {
+      fetchMaterialsForSupplier(supplierId);
+    }
   };
 
   const handleInvoiceChange = (e) => {
