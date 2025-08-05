@@ -30,7 +30,8 @@ function App() {
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontWeight: activeModule === 'info' ? 'bold' : 'normal'
+            fontWeight: activeModule === 'info' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
           }}
         >
           System Info
@@ -45,7 +46,8 @@ function App() {
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontWeight: activeModule === 'purchase' ? 'bold' : 'normal'
+            fontWeight: activeModule === 'purchase' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
           }}
         >
           Purchase
@@ -60,7 +62,8 @@ function App() {
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontWeight: activeModule === 'writeoff' ? 'bold' : 'normal'
+            fontWeight: activeModule === 'writeoff' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
           }}
         >
           Material Writeoff
@@ -75,7 +78,8 @@ function App() {
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontWeight: activeModule === 'batch' ? 'bold' : 'normal'
+            fontWeight: activeModule === 'batch' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
           }}
         >
           Batch Production
@@ -86,10 +90,20 @@ function App() {
         <div className="info-section">
           <h3>System Status</h3>
           <ul>
-            <li>✅ Purchase Module - Modularized</li>
-            <li>✅ Material Writeoff - Modularized</li>
-            <li>✅ Batch Production - Modularized</li>
+            <li>✅ Purchase Module - With Traceability</li>
+            <li>✅ Material Writeoff - Functional</li>
+            <li>✅ Batch Production - With Traceability</li>
+            <li>🔄 Traceability System - Partially Implemented</li>
+            <li>📋 Blending Module - To be implemented</li>
             <li>📋 Material Sales - To be implemented</li>
+          </ul>
+          
+          <h3 style={{ marginTop: '30px' }}>Traceability Status</h3>
+          <ul>
+            <li>✅ Purchase Traceable Codes (e.g., GNS-AK-1-05082025-ABC)</li>
+            <li>✅ Batch Production Traceable Codes (e.g., GNO-AK-05082025-PUV)</li>
+            <li>📋 Blending Traceable Codes - Pending</li>
+            <li>📋 Master Data Management UI - Pending</li>
           </ul>
         </div>
       )}
