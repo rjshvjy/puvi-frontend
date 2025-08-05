@@ -7,6 +7,8 @@ const Purchase = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [invoiceData, setInvoiceData] = useState({
     supplier_id: '',
     invoice_ref: '',
@@ -57,6 +59,15 @@ const Purchase = () => {
       setMaterials(response.materials || []);
     } catch (error) {
       setMessage(`Error loading materials: ${error.message}`);
+    }
+  };
+
+  const fetchPurchaseHistory = async () => {
+    try {
+      const response = await api.purchase.getPurchaseHistory({ limit: 20 });
+      setPurchaseHistory(response.purchases || []);
+    } catch (error) {
+      setMessage(`Error loading purchase history: ${error.message}`);
     }
   };
 
@@ -244,10 +255,18 @@ const Purchase = () => {
 
       const response = await api.purchase.addPurchase(payload);
       
-      setMessage(`✅ Purchase recorded successfully! 
-        Invoice: ${response.invoice_ref}
-        Total: ₹${response.total_cost}
-        Items: ${response.items_count}`);
+      if (response.traceable_codes) {
+        setMessage(`✅ Purchase recorded successfully! 
+Invoice: ${response.invoice_ref}
+Total: ₹${response.total_cost}
+Items: ${response.items_count}
+Traceable Codes: ${response.traceable_codes.join(', ')}`);
+      } else {
+        setMessage(`✅ Purchase recorded successfully! 
+Invoice: ${response.invoice_ref}
+Total: ₹${response.total_cost}
+Items: ${response.items_count}`);
+      }
       
       // Reset form
       setInvoiceData({
@@ -277,10 +296,30 @@ const Purchase = () => {
   const totals = calculateTotals();
   const totalPercentage = Object.values(uomGroups).reduce((sum, g) => sum + g.percentage, 0);
 
+  // Format date for display
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+  };
+
   return (
     <div className="purchase-module">
       <div className="module-header">
         <h2>Purchase Entry - Multi Item</h2>
+        <div className="header-actions">
+          <button 
+            className="view-history-btn"
+            onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory && purchaseHistory.length === 0) {
+                fetchPurchaseHistory();
+              }
+            }}
+          >
+            {showHistory ? 'Hide History' : 'View History'}
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -289,271 +328,333 @@ const Purchase = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="purchase-form">
-        {/* Header Section */}
-        <div className="form-section">
-          <h3>Invoice Details</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Supplier *</label>
-              <select 
-                value={selectedSupplier}
-                onChange={handleSupplierChange}
-                required
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map(supplier => (
-                  <option key={supplier.supplier_id} value={supplier.supplier_id}>
-                    {supplier.supplier_name} ({supplier.material_count} materials)
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label>Invoice Reference *</label>
-              <input
-                type="text"
-                name="invoice_ref"
-                value={invoiceData.invoice_ref}
-                onChange={handleInvoiceChange}
-                required
-              />
-            </div>
+      {!showHistory ? (
+        <form onSubmit={handleSubmit} className="purchase-form">
+          {/* Header Section */}
+          <div className="form-section">
+            <h3>Invoice Details</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Supplier *</label>
+                <select 
+                  value={selectedSupplier}
+                  onChange={handleSupplierChange}
+                  required
+                  className="form-control"
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.supplier_id} value={supplier.supplier_id}>
+                      {supplier.supplier_name} 
+                      {supplier.short_code && ` (${supplier.short_code})`}
+                      {` - ${supplier.material_count} materials`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>Invoice Reference *</label>
+                <input
+                  type="text"
+                  name="invoice_ref"
+                  value={invoiceData.invoice_ref}
+                  onChange={handleInvoiceChange}
+                  required
+                  className="form-control"
+                  placeholder="Enter invoice number"
+                />
+              </div>
 
-            <div className="form-group">
-              <label>Purchase Date *</label>
-              <input
-                type="date"
-                name="purchase_date"
-                value={invoiceData.purchase_date}
-                onChange={handleInvoiceChange}
-                required
-              />
+              <div className="form-group">
+                <label>Purchase Date *</label>
+                <input
+                  type="date"
+                  name="purchase_date"
+                  value={invoiceData.purchase_date}
+                  onChange={handleInvoiceChange}
+                  required
+                  className="form-control"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Items Section */}
-        <div className="form-section">
-          <div className="section-header">
-            <h3>Items</h3>
-            <button type="button" onClick={addItem} className="add-button">
-              + Add Item
+          {/* Items Section */}
+          <div className="form-section">
+            <div className="section-header">
+              <h3>Items</h3>
+              <button type="button" onClick={addItem} className="add-button">
+                + Add Item
+              </button>
+            </div>
+
+            <div className="items-table-container">
+              <table className="items-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '25%' }}>Material</th>
+                    <th style={{ width: '10%' }}>Qty</th>
+                    <th style={{ width: '8%' }}>Unit</th>
+                    <th style={{ width: '10%' }}>Rate</th>
+                    <th style={{ width: '12%' }}>Amount</th>
+                    <th style={{ width: '8%' }}>GST%</th>
+                    <th style={{ width: '10%' }}>GST Amt</th>
+                    <th style={{ width: '8%' }}>Transport</th>
+                    <th style={{ width: '8%' }}>Handling</th>
+                    <th style={{ width: '12%' }}>Total</th>
+                    <th style={{ width: '5%' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, index) => {
+                    const amount = (parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0);
+                    const taxableAmount = amount + (parseFloat(item.transport_charges) || 0) + (parseFloat(item.handling_charges) || 0);
+                    const gstAmount = taxableAmount * (parseFloat(item.gst_rate) || 0) / 100;
+                    const total = taxableAmount + gstAmount;
+                    const material = materials.find(m => m.material_id === parseInt(item.material_id));
+                    
+                    return (
+                      <tr key={index}>
+                        <td>
+                          <select
+                            value={item.material_id}
+                            onChange={(e) => handleItemChange(index, 'material_id', e.target.value)}
+                            disabled={!selectedSupplier}
+                            className="form-control"
+                          >
+                            <option value="">Select Material</option>
+                            {materials.map(material => (
+                              <option key={material.material_id} value={material.material_id}>
+                                {material.material_name}
+                                {material.short_code && ` (${material.short_code})`}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            step="0.01"
+                            className="form-control text-right"
+                          />
+                        </td>
+                        <td className="unit">{getMaterialUnit(item.material_id)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.rate}
+                            onChange={(e) => handleItemChange(index, 'rate', e.target.value)}
+                            step="0.01"
+                            className="form-control text-right"
+                          />
+                        </td>
+                        <td className="amount">₹{amount.toFixed(2)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.gst_rate}
+                            readOnly
+                            className="form-control readonly text-center"
+                          />
+                        </td>
+                        <td className="amount">₹{gstAmount.toFixed(2)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.transport_charges}
+                            onChange={(e) => handleItemChange(index, 'transport_charges', e.target.value)}
+                            step="0.01"
+                            className="form-control text-right"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.handling_charges}
+                            onChange={(e) => handleItemChange(index, 'handling_charges', e.target.value)}
+                            step="0.01"
+                            className="form-control text-right"
+                          />
+                        </td>
+                        <td className="amount total">₹{total.toFixed(2)}</td>
+                        <td>
+                          {items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="remove-button"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Transport & Handling Allocation */}
+          <div className="form-section">
+            <h3>Transport & Handling Charges</h3>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Total Transport Cost (₹)</label>
+                <input
+                  type="number"
+                  name="transport_cost"
+                  value={invoiceData.transport_cost}
+                  onChange={handleInvoiceChange}
+                  step="0.01"
+                  className="form-control"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Total Handling Charges (₹)</label>
+                <input
+                  type="number"
+                  name="handling_charges"
+                  value={invoiceData.handling_charges}
+                  onChange={handleInvoiceChange}
+                  step="0.01"
+                  className="form-control"
+                />
+              </div>
+            </div>
+
+            {(parseFloat(invoiceData.transport_cost) > 0 || parseFloat(invoiceData.handling_charges) > 0) && (
+              <div className="allocation-settings">
+                <h4>UOM Group Allocation</h4>
+                <div className="uom-groups">
+                  <div className="uom-group">
+                    <label>Weight (kg)</label>
+                    <div className="input-group">
+                      <input
+                        type="number"
+                        value={uomGroups.kg.percentage}
+                        onChange={(e) => handleGroupPercentageChange('kg', e.target.value)}
+                        min="0"
+                        max="100"
+                        className="form-control"
+                      />
+                      <span className="input-addon">%</span>
+                    </div>
+                  </div>
+                  <div className="uom-group">
+                    <label>Volume (L)</label>
+                    <div className="input-group">
+                      <input
+                        type="number"
+                        value={uomGroups.L.percentage}
+                        onChange={(e) => handleGroupPercentageChange('L', e.target.value)}
+                        min="0"
+                        max="100"
+                        className="form-control"
+                      />
+                      <span className="input-addon">%</span>
+                    </div>
+                  </div>
+                  <div className="uom-group">
+                    <label>Count (Nos)</label>
+                    <div className="input-group">
+                      <input
+                        type="number"
+                        value={uomGroups.Nos.percentage}
+                        onChange={(e) => handleGroupPercentageChange('Nos', e.target.value)}
+                        min="0"
+                        max="100"
+                        className="form-control"
+                      />
+                      <span className="input-addon">%</span>
+                    </div>
+                  </div>
+                  <div className={`total-percentage ${totalPercentage !== 100 ? 'error' : ''}`}>
+                    Total: {totalPercentage}%
+                  </div>
+                </div>
+                {totalPercentage !== 100 && (
+                  <div className="error-text">Total allocation must equal 100%</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Summary Section */}
+          <div className="cost-summary">
+            <h3>Invoice Summary</h3>
+            <div className="summary-grid">
+              <div className="summary-row">
+                <span>Subtotal:</span>
+                <span>₹{totals.subtotal}</span>
+              </div>
+              <div className="summary-row">
+                <span>Total GST:</span>
+                <span>₹{totals.totalGst}</span>
+              </div>
+              <div className="summary-row">
+                <span>Transport Charges:</span>
+                <span>₹{totals.transportCost}</span>
+              </div>
+              <div className="summary-row">
+                <span>Handling Charges:</span>
+                <span>₹{totals.handlingCharges}</span>
+              </div>
+              <div className="summary-row total">
+                <span>Grand Total:</span>
+                <span>₹{totals.grandTotal}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" disabled={loading || totalPercentage !== 100} className="submit-button">
+              {loading ? 'Saving Purchase...' : 'Save Purchase'}
             </button>
           </div>
-
-          <div className="items-table">
-            <table>
+        </form>
+      ) : (
+        <div className="purchase-history">
+          <h3>Purchase History</h3>
+          <div className="history-table-container">
+            <table className="history-table">
               <thead>
                 <tr>
-                  <th>Material</th>
-                  <th>Qty</th>
-                  <th>Unit</th>
-                  <th>Rate</th>
-                  <th>Amount</th>
-                  <th>GST%</th>
-                  <th>GST Amt</th>
-                  <th>Transport</th>
-                  <th>Handling</th>
+                  <th>Date</th>
+                  <th>Invoice</th>
+                  <th>Supplier</th>
+                  <th>Items</th>
                   <th>Total</th>
-                  <th></th>
+                  <th>Traceable Code</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => {
-                  const amount = (parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0);
-                  const taxableAmount = amount + (parseFloat(item.transport_charges) || 0) + (parseFloat(item.handling_charges) || 0);
-                  const gstAmount = taxableAmount * (parseFloat(item.gst_rate) || 0) / 100;
-                  const total = taxableAmount + gstAmount;
-                  
-                  return (
-                    <tr key={index}>
-                      <td>
-                        <select
-                          value={item.material_id}
-                          onChange={(e) => handleItemChange(index, 'material_id', e.target.value)}
-                          disabled={!selectedSupplier}
-                        >
-                          <option value="">Select Material</option>
-                          {materials.map(material => (
-                            <option key={material.material_id} value={material.material_id}>
-                              {material.material_name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          step="0.01"
-                        />
-                      </td>
-                      <td className="unit">{getMaterialUnit(item.material_id)}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.rate}
-                          onChange={(e) => handleItemChange(index, 'rate', e.target.value)}
-                          step="0.01"
-                        />
-                      </td>
-                      <td className="amount">₹{amount.toFixed(2)}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.gst_rate}
-                          readOnly
-                          className="readonly"
-                        />
-                      </td>
-                      <td className="amount">₹{gstAmount.toFixed(2)}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.transport_charges}
-                          onChange={(e) => handleItemChange(index, 'transport_charges', e.target.value)}
-                          step="0.01"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.handling_charges}
-                          onChange={(e) => handleItemChange(index, 'handling_charges', e.target.value)}
-                          step="0.01"
-                        />
-                      </td>
-                      <td className="amount total">₹{total.toFixed(2)}</td>
-                      <td>
-                        {items.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeItem(index)}
-                            className="remove-button"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {purchaseHistory.map((purchase) => (
+                  <tr key={purchase.purchase_id}>
+                    <td>{formatDate(purchase.purchase_date)}</td>
+                    <td>{purchase.invoice_ref}</td>
+                    <td>{purchase.supplier_name}</td>
+                    <td>{purchase.item_count}</td>
+                    <td>₹{purchase.total_cost.toFixed(2)}</td>
+                    <td className="traceable-code">
+                      {purchase.traceable_code || '-'}
+                    </td>
+                    <td>
+                      <button className="view-details-btn">View</button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* Transport & Handling Allocation */}
-        <div className="form-section">
-          <h3>Transport & Handling Charges</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Total Transport Cost (₹)</label>
-              <input
-                type="number"
-                name="transport_cost"
-                value={invoiceData.transport_cost}
-                onChange={handleInvoiceChange}
-                step="0.01"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Total Handling Charges (₹)</label>
-              <input
-                type="number"
-                name="handling_charges"
-                value={invoiceData.handling_charges}
-                onChange={handleInvoiceChange}
-                step="0.01"
-              />
-            </div>
-          </div>
-
-          {(parseFloat(invoiceData.transport_cost) > 0 || parseFloat(invoiceData.handling_charges) > 0) && (
-            <div className="allocation-settings">
-              <h4>UOM Group Allocation</h4>
-              <div className="uom-groups">
-                <div className="uom-group">
-                  <label>Weight (kg)</label>
-                  <input
-                    type="number"
-                    value={uomGroups.kg.percentage}
-                    onChange={(e) => handleGroupPercentageChange('kg', e.target.value)}
-                    min="0"
-                    max="100"
-                  />
-                  <span>%</span>
-                </div>
-                <div className="uom-group">
-                  <label>Volume (L)</label>
-                  <input
-                    type="number"
-                    value={uomGroups.L.percentage}
-                    onChange={(e) => handleGroupPercentageChange('L', e.target.value)}
-                    min="0"
-                    max="100"
-                  />
-                  <span>%</span>
-                </div>
-                <div className="uom-group">
-                  <label>Count (Nos)</label>
-                  <input
-                    type="number"
-                    value={uomGroups.Nos.percentage}
-                    onChange={(e) => handleGroupPercentageChange('Nos', e.target.value)}
-                    min="0"
-                    max="100"
-                  />
-                  <span>%</span>
-                </div>
-                <div className={`total-percentage ${totalPercentage !== 100 ? 'error' : ''}`}>
-                  Total: {totalPercentage}%
-                </div>
-              </div>
-              {totalPercentage !== 100 && (
-                <div className="error-text">Total allocation must equal 100%</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Summary Section */}
-        <div className="cost-summary">
-          <h3>Invoice Summary</h3>
-          <div className="summary-grid">
-            <div className="summary-row">
-              <span>Subtotal:</span>
-              <span>₹{totals.subtotal}</span>
-            </div>
-            <div className="summary-row">
-              <span>Total GST:</span>
-              <span>₹{totals.totalGst}</span>
-            </div>
-            <div className="summary-row">
-              <span>Transport Charges:</span>
-              <span>₹{totals.transportCost}</span>
-            </div>
-            <div className="summary-row">
-              <span>Handling Charges:</span>
-              <span>₹{totals.handlingCharges}</span>
-            </div>
-            <div className="summary-row total">
-              <span>Grand Total:</span>
-              <span>₹{totals.grandTotal}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="form-actions">
-          <button type="submit" disabled={loading || totalPercentage !== 100} className="submit-button">
-            {loading ? 'Saving Purchase...' : 'Save Purchase'}
-          </button>
-        </div>
-      </form>
+      )}
     </div>
   );
 };
