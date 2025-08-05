@@ -1,9 +1,13 @@
+// Main App Component for PUVI Oil Manufacturing System
+// File Path: puvi-frontend/src/App.js
+
 import React, { useState } from 'react';
 import './App.css';
 import Purchase from './modules/Purchase';
 import MaterialWriteoff from './modules/MaterialWriteoff';
 import BatchProduction from './modules/BatchProduction';
 import Blending from './modules/Blending';
+import MaterialSales from './modules/MaterialSales';  // NEW - Import Material Sales
 
 function App() {
   const [activeModule, setActiveModule] = useState('info');
@@ -101,6 +105,22 @@ function App() {
         >
           Blending
         </button>
+        
+        <button 
+          onClick={() => setActiveModule('sales')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeModule === 'sales' ? '#e67e22' : '#ecf0f1',
+            color: activeModule === 'sales' ? 'white' : '#2c3e50',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: activeModule === 'sales' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Material Sales
+        </button>
       </nav>
 
       {activeModule === 'info' && (
@@ -111,8 +131,8 @@ function App() {
             <li>✅ Material Writeoff - Functional</li>
             <li>✅ Batch Production - With Traceability</li>
             <li>✅ Blending Module - Functional</li>
+            <li>✅ Material Sales - With FIFO & Cost Reconciliation (NEW)</li>
             <li>🔄 Traceability System - Partially Implemented</li>
-            <li>📋 Material Sales - To be implemented</li>
             <li>📋 SKU Production/Packaging - To be implemented</li>
             <li>📋 Reports & Analytics - To be implemented</li>
           </ul>
@@ -122,16 +142,29 @@ function App() {
             <li>✅ Purchase Traceable Codes (e.g., GNS-AK-1-05082025-ABC)</li>
             <li>✅ Batch Production Traceable Codes (e.g., GNO-AK-05082025-PUV)</li>
             <li>✅ Blending Traceable Codes (e.g., BLEND-Groundnut-05082025)</li>
+            <li>✅ Material Sales Tracking with Batch Allocation</li>
             <li>📋 Package/Bottle Codes - Pending</li>
             <li>📋 Master Data Management UI - Pending</li>
           </ul>
           
-          <h3 style={{ marginTop: '30px' }}>Recent Updates</h3>
+          <h3 style={{ marginTop: '30px' }}>Recent Updates - Material Sales Module</h3>
           <ul>
-            <li>🔔 Blending Module implemented with multi-oil support</li>
-            <li>🔔 Dynamic percentage allocation for blend components</li>
-            <li>🔔 Real-time weighted average cost calculation</li>
-            <li>🔔 Inventory deduction from source batches</li>
+            <li>🔔 <strong>NEW:</strong> Material Sales Module implemented</li>
+            <li>🔔 FIFO allocation for by-product sales (Oil Cake, Sludge)</li>
+            <li>🔔 Retroactive cost adjustments to batch production</li>
+            <li>🔔 Real-time cost impact preview before sale</li>
+            <li>🔔 Complete audit trail with batch allocations</li>
+            <li>🔔 Cost reconciliation report showing oil cost adjustments</li>
+            <li>🔔 Support for multiple by-product types (expandable for future items)</li>
+          </ul>
+          
+          <h3 style={{ marginTop: '30px' }}>Key Features - Material Sales</h3>
+          <ul>
+            <li>📊 <strong>FIFO Allocation:</strong> Automatically allocates from oldest inventory first</li>
+            <li>💰 <strong>Cost Reconciliation:</strong> Adjusts batch oil costs based on actual vs estimated by-product revenue</li>
+            <li>📈 <strong>Real-time Preview:</strong> Shows cost impact before confirming sale</li>
+            <li>📋 <strong>Complete History:</strong> Track all sales with batch allocations and adjustments</li>
+            <li>🔄 <strong>Flexible System:</strong> Handles Oil Cake, Sludge, and future by-products</li>
           </ul>
         </div>
       )}
@@ -140,6 +173,7 @@ function App() {
       {activeModule === 'writeoff' && <MaterialWriteoff />}
       {activeModule === 'batch' && <BatchProduction />}
       {activeModule === 'blending' && <Blending />}
+      {activeModule === 'sales' && <MaterialSales />}
     </div>
   );
 }
