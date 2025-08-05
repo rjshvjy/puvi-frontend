@@ -3,6 +3,7 @@ import './App.css';
 import Purchase from './modules/Purchase';
 import MaterialWriteoff from './modules/MaterialWriteoff';
 import BatchProduction from './modules/BatchProduction';
+import Blending from './modules/Blending';
 
 function App() {
   const [activeModule, setActiveModule] = useState('info');
@@ -84,6 +85,22 @@ function App() {
         >
           Batch Production
         </button>
+        
+        <button 
+          onClick={() => setActiveModule('blending')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeModule === 'blending' ? '#9b59b6' : '#ecf0f1',
+            color: activeModule === 'blending' ? 'white' : '#2c3e50',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: activeModule === 'blending' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Blending
+        </button>
       </nav>
 
       {activeModule === 'info' && (
@@ -93,17 +110,28 @@ function App() {
             <li>✅ Purchase Module - With Traceability</li>
             <li>✅ Material Writeoff - Functional</li>
             <li>✅ Batch Production - With Traceability</li>
+            <li>✅ Blending Module - Functional</li>
             <li>🔄 Traceability System - Partially Implemented</li>
-            <li>📋 Blending Module - To be implemented</li>
             <li>📋 Material Sales - To be implemented</li>
+            <li>📋 SKU Production/Packaging - To be implemented</li>
+            <li>📋 Reports & Analytics - To be implemented</li>
           </ul>
           
           <h3 style={{ marginTop: '30px' }}>Traceability Status</h3>
           <ul>
             <li>✅ Purchase Traceable Codes (e.g., GNS-AK-1-05082025-ABC)</li>
             <li>✅ Batch Production Traceable Codes (e.g., GNO-AK-05082025-PUV)</li>
-            <li>📋 Blending Traceable Codes - Pending</li>
+            <li>✅ Blending Traceable Codes (e.g., BLEND-Groundnut-05082025)</li>
+            <li>📋 Package/Bottle Codes - Pending</li>
             <li>📋 Master Data Management UI - Pending</li>
+          </ul>
+          
+          <h3 style={{ marginTop: '30px' }}>Recent Updates</h3>
+          <ul>
+            <li>🔔 Blending Module implemented with multi-oil support</li>
+            <li>🔔 Dynamic percentage allocation for blend components</li>
+            <li>🔔 Real-time weighted average cost calculation</li>
+            <li>🔔 Inventory deduction from source batches</li>
           </ul>
         </div>
       )}
@@ -111,6 +139,7 @@ function App() {
       {activeModule === 'purchase' && <Purchase />}
       {activeModule === 'writeoff' && <MaterialWriteoff />}
       {activeModule === 'batch' && <BatchProduction />}
+      {activeModule === 'blending' && <Blending />}
     </div>
   );
 }
