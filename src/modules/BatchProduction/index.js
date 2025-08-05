@@ -9,6 +9,8 @@ const BatchProduction = () => {
   const [oilCakeRates, setOilCakeRates] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [batchHistory, setBatchHistory] = useState([]);
   
   // Form data
   const [batchData, setBatchData] = useState({
@@ -23,7 +25,8 @@ const BatchProduction = () => {
     sludge_yield: '',
     cake_estimated_rate: '',
     sludge_estimated_rate: '',
-    cost_overrides: {}
+    cost_overrides: {},
+    seed_purchase_code: '' // Added for traceability
   });
 
   const [selectedSeed, setSelectedSeed] = useState(null);
@@ -65,6 +68,17 @@ const BatchProduction = () => {
       }
     } catch (error) {
       console.error('Error fetching oil cake rates:', error);
+    }
+  };
+
+  const fetchBatchHistory = async () => {
+    try {
+      const response = await api.batch.getBatchHistory({ limit: 20 });
+      if (response.success) {
+        setBatchHistory(response.batches);
+      }
+    } catch (error) {
+      console.error('Error fetching batch history:', error);
     }
   };
 
@@ -169,7 +183,8 @@ const BatchProduction = () => {
     setBatchData({
       ...batchData,
       material_id: seed.material_id,
-      oil_type: seed.material_name.split(' ')[0] // Extract oil type from seed name
+      oil_type: seed.material_name.split(' ')[0], // Extract oil type from seed name
+      seed_purchase_code: seed.latest_purchase_code || '' // Set the purchase traceable code
     });
     
     // Set default cake rates if available
@@ -223,13 +238,15 @@ const BatchProduction = () => {
         estimated_sludge_revenue: costs.sludgeRevenue
       };
       
-      // Debug logging
-      console.log('Payload being sent:', JSON.stringify(payload, null, 2));
-      
       const response = await api.batch.addBatch(payload);
       
       if (response.success) {
-        setMessage(`✅ Batch ${response.batch_code} created successfully! Oil cost: ₹${response.oil_cost_per_kg.toFixed(2)}/kg`);
+        setMessage(`✅ Batch created successfully!
+Batch Code: ${response.batch_code}
+Traceable Code: ${response.traceable_code}
+Oil Cost: ₹${response.oil_cost_per_kg.toFixed(2)}/kg
+Total Oil Produced: ${response.total_oil_produced} kg`);
+        
         // Reset form
         setBatchData({
           oil_type: '',
@@ -243,10 +260,16 @@ const BatchProduction = () => {
           sludge_yield: '',
           cake_estimated_rate: '',
           sludge_estimated_rate: '',
-          cost_overrides: {}
+          cost_overrides: {},
+          seed_purchase_code: ''
         });
         setSelectedSeed(null);
         setCurrentStep(1);
+        
+        // Refresh history if visible
+        if (showHistory) {
+          fetchBatchHistory();
+        }
       }
     } catch (error) {
       console.error('Error submitting batch:', error);
@@ -260,11 +283,44 @@ const BatchProduction = () => {
   const yields = calculateYieldPercentages();
   const costs = calculateCosts();
 
+  // Format date for display
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+  };
+
   return (
     <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', color: '#333' }}>
-        Batch Production Module
-      </h2>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '20px'
+      }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', margin: 0 }}>
+          Batch Production Module
+        </h2>
+        <button
+          onClick={() => {
+            setShowHistory(!showHistory);
+            if (!showHistory && batchHistory.length === 0) {
+              fetchBatchHistory();
+            }
+          }}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          {showHistory ? 'Hide History' : 'View History'}
+        </button>
+      </div>
 
       {message && (
         <div style={{
@@ -273,473 +329,568 @@ const BatchProduction = () => {
           borderRadius: '4px',
           backgroundColor: message.includes('✅') ? '#d4edda' : '#f8d7da',
           color: message.includes('✅') ? '#155724' : '#721c24',
-          border: `1px solid ${message.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`
+          border: `1px solid ${message.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`,
+          whiteSpace: 'pre-line'
         }}>
           {message}
         </div>
       )}
 
-      {/* Progress Steps */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
-        {['Basic Info', 'Seed & Drying', 'Outputs', 'Cost Review'].map((step, index) => (
-          <div
-            key={index}
-            style={{
-              flex: 1,
-              textAlign: 'center',
-              padding: '10px',
-              backgroundColor: currentStep === index + 1 ? '#007BFF' : '#e9ecef',
-              color: currentStep === index + 1 ? 'white' : '#6c757d',
-              borderRadius: '5px',
-              margin: '0 5px',
-              cursor: currentStep > index + 1 ? 'pointer' : 'default'
-            }}
-            onClick={() => currentStep > index + 1 && setCurrentStep(index + 1)}
-          >
-            {step}
+      {!showHistory ? (
+        <>
+          {/* Progress Steps */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
+            {['Basic Info', 'Seed & Drying', 'Outputs', 'Cost Review'].map((step, index) => (
+              <div
+                key={index}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '10px',
+                  backgroundColor: currentStep === index + 1 ? '#007BFF' : '#e9ecef',
+                  color: currentStep === index + 1 ? 'white' : '#6c757d',
+                  borderRadius: '5px',
+                  margin: '0 5px',
+                  cursor: currentStep > index + 1 ? 'pointer' : 'default'
+                }}
+                onClick={() => currentStep > index + 1 && setCurrentStep(index + 1)}
+              >
+                {step}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Step 1: Basic Information */}
-      {currentStep === 1 && (
-        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-            Batch Identification
-          </h3>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Production Date *
-            </label>
-            <input
-              type="date"
-              value={batchData.production_date}
-              onChange={e => setBatchData({ ...batchData, production_date: e.target.value })}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Batch Description *
-            </label>
-            <input
-              type="text"
-              placeholder="e.g., Morning, Premium, Test"
-              value={batchData.batch_description}
-              onChange={e => setBatchData({ ...batchData, batch_description: e.target.value })}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-            />
-            <small style={{ color: '#6c757d' }}>
-              Batch Code: BATCH-{batchData.production_date.split('-').reverse().join('')}-{batchData.batch_description || '[Description]'}
-            </small>
-          </div>
-          
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600' }}>
-              Select Seed Material *
-            </label>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {availableSeeds.map(seed => (
-                <div
-                  key={seed.material_id}
-                  onClick={() => handleSeedSelection(seed)}
-                  style={{
-                    padding: '15px',
-                    marginBottom: '10px',
-                    backgroundColor: selectedSeed?.material_id === seed.material_id ? '#007BFF' : 'white',
-                    color: selectedSeed?.material_id === seed.material_id ? 'white' : 'black',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    border: '1px solid #ddd'
-                  }}
-                >
-                  <strong>{seed.material_name}</strong>
-                  <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                    Available: {seed.available_quantity} kg @ ₹{seed.weighted_avg_cost.toFixed(2)}/kg
-                  </div>
+          {/* Step 1: Basic Information */}
+          {currentStep === 1 && (
+            <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
+                Batch Identification
+              </h3>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Production Date *
+                </label>
+                <input
+                  type="date"
+                  value={batchData.production_date}
+                  onChange={e => setBatchData({ ...batchData, production_date: e.target.value })}
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Batch Description *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Morning, Premium, Test"
+                  value={batchData.batch_description}
+                  onChange={e => setBatchData({ ...batchData, batch_description: e.target.value })}
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                />
+                <small style={{ color: '#6c757d' }}>
+                  Batch Code: BATCH-{batchData.production_date.split('-').reverse().join('')}-{batchData.batch_description || '[Description]'}
+                </small>
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600' }}>
+                  Select Seed Material *
+                </label>
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {availableSeeds.map(seed => (
+                    <div
+                      key={seed.material_id}
+                      onClick={() => handleSeedSelection(seed)}
+                      style={{
+                        padding: '15px',
+                        marginBottom: '10px',
+                        backgroundColor: selectedSeed?.material_id === seed.material_id ? '#007BFF' : 'white',
+                        color: selectedSeed?.material_id === seed.material_id ? 'white' : 'black',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        border: '1px solid #ddd'
+                      }}
+                    >
+                      <strong>{seed.material_name}</strong>
+                      {seed.short_code && <span style={{ marginLeft: '10px', opacity: 0.8 }}>({seed.short_code})</span>}
+                      <div style={{ fontSize: '14px', marginTop: '5px' }}>
+                        Available: {seed.available_quantity} kg @ ₹{seed.weighted_avg_cost.toFixed(2)}/kg
+                      </div>
+                      {seed.latest_purchase_code && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          marginTop: '5px', 
+                          fontFamily: 'monospace',
+                          opacity: 0.8 
+                        }}>
+                          Purchase Code: {seed.latest_purchase_code}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              
+              <button
+                onClick={() => setCurrentStep(2)}
+                disabled={!selectedSeed || !batchData.batch_description}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: (!selectedSeed || !batchData.batch_description) ? '#6c757d' : '#007BFF',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: (!selectedSeed || !batchData.batch_description) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next: Seed & Drying
+              </button>
             </div>
-          </div>
-          
-          <button
-            onClick={() => setCurrentStep(2)}
-            disabled={!selectedSeed || !batchData.batch_description}
-            style={{
-              width: '100%',
-              padding: '12px',
-              backgroundColor: (!selectedSeed || !batchData.batch_description) ? '#6c757d' : '#007BFF',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: (!selectedSeed || !batchData.batch_description) ? 'not-allowed' : 'pointer'
-            }}
-          >
-            Next: Seed & Drying
-          </button>
-        </div>
-      )}
+          )}
 
-      {/* Step 2: Seed Input & Drying */}
-      {currentStep === 2 && (
-        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-            Seed Input & Drying Process
-          </h3>
-          
-          {selectedSeed && (
-            <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '5px' }}>
-              <strong>Selected Material:</strong> {selectedSeed.material_name}<br />
-              Available: {selectedSeed.available_quantity} kg @ ₹{selectedSeed.weighted_avg_cost.toFixed(2)}/kg
-            </div>
-          )}
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-                Quantity Before Drying (kg) *
-              </label>
-              <input
-                type="number"
-                value={batchData.seed_quantity_before_drying}
-                onChange={e => setBatchData({ ...batchData, seed_quantity_before_drying: e.target.value })}
-                max={selectedSeed?.available_quantity}
-                step="0.01"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            </div>
-            
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-                Quantity After Drying (kg) *
-              </label>
-              <input
-                type="number"
-                value={batchData.seed_quantity_after_drying}
-                onChange={e => setBatchData({ ...batchData, seed_quantity_after_drying: e.target.value })}
-                max={batchData.seed_quantity_before_drying}
-                step="0.01"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            </div>
-          </div>
-          
-          {batchData.seed_quantity_before_drying && batchData.seed_quantity_after_drying && (
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '5px' }}>
-              <strong>Drying Loss:</strong> {loss.toFixed(2)} kg ({lossPercent.toFixed(2)}%)
-            </div>
-          )}
-          
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => setCurrentStep(1)}
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentStep(3)}
-              disabled={!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying}
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: (!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying) ? '#6c757d' : '#007BFF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: (!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Next: Production Outputs
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Production Outputs */}
-      {currentStep === 3 && (
-        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-            Production Outputs
-          </h3>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Oil Yield (kg) *
-            </label>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="number"
-                value={batchData.oil_yield}
-                onChange={e => setBatchData({ ...batchData, oil_yield: e.target.value })}
-                step="0.01"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-              <span style={{ color: yields.oilPercent > 50 ? '#dc3545' : '#28a745' }}>
-                {yields.oilPercent.toFixed(2)}%
-              </span>
-            </div>
-          </div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Oil Cake Yield (kg) *
-            </label>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="number"
-                value={batchData.cake_yield}
-                onChange={e => setBatchData({ ...batchData, cake_yield: e.target.value })}
-                step="0.01"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-              <span>{yields.cakePercent.toFixed(2)}%</span>
-            </div>
-          </div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Estimated Oil Cake Rate (₹/kg) *
-            </label>
-            <input
-              type="number"
-              value={batchData.cake_estimated_rate}
-              onChange={e => setBatchData({ ...batchData, cake_estimated_rate: e.target.value })}
-              step="0.01"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-              Sludge Yield (kg) - Optional
-            </label>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="number"
-                value={batchData.sludge_yield}
-                onChange={e => setBatchData({ ...batchData, sludge_yield: e.target.value })}
-                step="0.01"
-                style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-              <span>{yields.sludgePercent.toFixed(2)}%</span>
-            </div>
-          </div>
-          
-          {batchData.sludge_yield && (
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-                Estimated Sludge Rate (₹/kg)
-              </label>
-              <input
-                type="number"
-                value={batchData.sludge_estimated_rate}
-                onChange={e => setBatchData({ ...batchData, sludge_estimated_rate: e.target.value })}
-                step="0.01"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            </div>
-          )}
-          
-          {yields.totalPercent > 0 && (
-            <div style={{
-              marginBottom: '20px',
-              padding: '15px',
-              backgroundColor: yields.totalPercent > 110 ? '#f8d7da' : yields.totalPercent > 105 ? '#fff3cd' : '#d4edda',
-              borderRadius: '5px'
-            }}>
-              <strong>Total Yield:</strong> {yields.totalPercent.toFixed(2)}%
-              {yields.totalPercent > 110 && ' (Warning: Unusually high yield - please verify)'}
-              {yields.totalPercent > 100 && yields.totalPercent <= 110 && ' (Includes processing additions)'}
-            </div>
-          )}
-          
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => setCurrentStep(2)}
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentStep(4)}
-              disabled={!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate}
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: (!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate) ? '#6c757d' : '#007BFF',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: (!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Next: Cost Review
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Cost Review & Override */}
-      {currentStep === 4 && costs && (
-        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-            Cost Review & Adjustments
-          </h3>
-          
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#e9ecef' }}>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Item</th>
-                <th style={{ padding: '10px', textAlign: 'center' }}>Unit</th>
-                <th style={{ padding: '10px', textAlign: 'center' }}>Master Rate</th>
-                <th style={{ padding: '10px', textAlign: 'center' }}>Override</th>
-                <th style={{ padding: '10px', textAlign: 'center' }}>Quantity</th>
-                <th style={{ padding: '10px', textAlign: 'right' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ padding: '10px' }}>{selectedSeed?.material_name}</td>
-                <td style={{ padding: '10px', textAlign: 'center' }}>kg</td>
-                <td style={{ padding: '10px', textAlign: 'center' }}>₹{selectedSeed?.weighted_avg_cost.toFixed(2)}</td>
-                <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
-                <td style={{ padding: '10px', textAlign: 'center' }}>{batchData.seed_quantity_before_drying}</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.seedCost.toFixed(2)}</td>
-              </tr>
+          {/* Step 2: Seed Input & Drying */}
+          {currentStep === 2 && (
+            <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
+                Seed Input & Drying Process
+              </h3>
               
-              {costElements.map(element => {
-                const detail = costs.costDetails.find(d => d.element_name === element.element_name);
-                return (
-                  <tr key={element.element_id}>
-                    <td style={{ padding: '10px' }}>{element.element_name}</td>
-                    <td style={{ padding: '10px', textAlign: 'center' }}>{element.unit_type}</td>
-                    <td style={{ padding: '10px', textAlign: 'center' }}>₹{element.default_rate.toFixed(2)}</td>
-                    <td style={{ padding: '10px', textAlign: 'center' }}>
-                      <input
-                        type="number"
-                        value={batchData.cost_overrides[element.element_id] || ''}
-                        onChange={e => {
-                          const value = e.target.value;
-                          setBatchData({
-                            ...batchData,
-                            cost_overrides: {
-                              ...batchData.cost_overrides,
-                              [element.element_id]: value === '' ? null : value
-                            }
-                          });
-                        }}
-                        onBlur={e => {
-                          // Clean up on blur - remove if empty
-                          if (e.target.value === '') {
-                            const newOverrides = { ...batchData.cost_overrides };
-                            delete newOverrides[element.element_id];
-                            setBatchData({
-                              ...batchData,
-                              cost_overrides: newOverrides
-                            });
-                          }
-                        }}
-                        placeholder={element.default_rate.toString()}
-                        style={{ width: '80px', padding: '5px', border: '1px solid #ced4da', borderRadius: '3px' }}
-                      />
-                    </td>
-                    <td style={{ padding: '10px', textAlign: 'center' }}>{detail?.quantity.toFixed(2)}</td>
-                    <td style={{ padding: '10px', textAlign: 'right' }}>₹{detail?.total_cost.toFixed(2)}</td>
-                  </tr>
-                );
-              })}
-              
-              <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
-                <td colSpan="5" style={{ padding: '10px' }}>Total Production Cost</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.totalCost.toFixed(2)}</td>
-              </tr>
-              
-              <tr style={{ backgroundColor: '#d4edda' }}>
-                <td style={{ padding: '10px' }}>Less: Oil Cake Revenue</td>
-                <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
-                  {batchData.cake_yield} kg × ₹{batchData.cake_estimated_rate}
-                </td>
-                <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.cakeRevenue.toFixed(2)}</td>
-              </tr>
-              
-              {batchData.sludge_yield && (
-                <tr style={{ backgroundColor: '#d4edda' }}>
-                  <td style={{ padding: '10px' }}>Less: Sludge Revenue</td>
-                  <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
-                    {batchData.sludge_yield} kg × ₹{batchData.sludge_estimated_rate}
-                  </td>
-                  <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.sludgeRevenue.toFixed(2)}</td>
-                </tr>
+              {selectedSeed && (
+                <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '5px' }}>
+                  <strong>Selected Material:</strong> {selectedSeed.material_name}
+                  {selectedSeed.short_code && <span style={{ marginLeft: '10px' }}>({selectedSeed.short_code})</span>}
+                  <br />
+                  Available: {selectedSeed.available_quantity} kg @ ₹{selectedSeed.weighted_avg_cost.toFixed(2)}/kg
+                  {batchData.seed_purchase_code && (
+                    <>
+                      <br />
+                      <span style={{ fontSize: '12px', fontFamily: 'monospace' }}>
+                        Tracing from: {batchData.seed_purchase_code}
+                      </span>
+                    </>
+                  )}
+                </div>
               )}
               
-              <tr style={{ backgroundColor: '#343a40', color: 'white', fontSize: '18px' }}>
-                <td colSpan="5" style={{ padding: '15px' }}>Net Oil Cost</td>
-                <td style={{ padding: '15px', textAlign: 'right' }}>₹{costs.netOilCost.toFixed(2)}</td>
-              </tr>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                    Quantity Before Drying (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    value={batchData.seed_quantity_before_drying}
+                    onChange={e => setBatchData({ ...batchData, seed_quantity_before_drying: e.target.value })}
+                    max={selectedSeed?.available_quantity}
+                    step="0.01"
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                    Quantity After Drying (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    value={batchData.seed_quantity_after_drying}
+                    onChange={e => setBatchData({ ...batchData, seed_quantity_after_drying: e.target.value })}
+                    max={batchData.seed_quantity_before_drying}
+                    step="0.01"
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                </div>
+              </div>
               
-              <tr style={{ backgroundColor: '#495057', color: 'white' }}>
-                <td colSpan="5" style={{ padding: '10px' }}>
-                  Cost per kg Oil ({batchData.oil_yield} kg)
-                </td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>
-                  ₹{costs.perKgOilCost.toFixed(2)}/kg
-                </td>
-              </tr>
-            </tbody>
-          </table>
+              {batchData.seed_quantity_before_drying && batchData.seed_quantity_after_drying && (
+                <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '5px' }}>
+                  <strong>Drying Loss:</strong> {loss.toFixed(2)} kg ({lossPercent.toFixed(2)}%)
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  disabled={!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: (!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying) ? '#6c757d' : '#007BFF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: (!batchData.seed_quantity_before_drying || !batchData.seed_quantity_after_drying) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Next: Production Outputs
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Production Outputs */}
+          {currentStep === 3 && (
+            <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
+                Production Outputs
+              </h3>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Oil Yield (kg) *
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={batchData.oil_yield}
+                    onChange={e => setBatchData({ ...batchData, oil_yield: e.target.value })}
+                    step="0.01"
+                    style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                  <span style={{ color: yields.oilPercent > 50 ? '#dc3545' : '#28a745' }}>
+                    {yields.oilPercent.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Oil Cake Yield (kg) *
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={batchData.cake_yield}
+                    onChange={e => setBatchData({ ...batchData, cake_yield: e.target.value })}
+                    step="0.01"
+                    style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                  <span>{yields.cakePercent.toFixed(2)}%</span>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Estimated Oil Cake Rate (₹/kg) *
+                </label>
+                <input
+                  type="number"
+                  value={batchData.cake_estimated_rate}
+                  onChange={e => setBatchData({ ...batchData, cake_estimated_rate: e.target.value })}
+                  step="0.01"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Sludge Yield (kg) - Optional
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={batchData.sludge_yield}
+                    onChange={e => setBatchData({ ...batchData, sludge_yield: e.target.value })}
+                    step="0.01"
+                    style={{ flex: 1, padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                  <span>{yields.sludgePercent.toFixed(2)}%</span>
+                </div>
+              </div>
+              
+              {batchData.sludge_yield && (
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                    Estimated Sludge Rate (₹/kg)
+                  </label>
+                  <input
+                    type="number"
+                    value={batchData.sludge_estimated_rate}
+                    onChange={e => setBatchData({ ...batchData, sludge_estimated_rate: e.target.value })}
+                    step="0.01"
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                  />
+                </div>
+              )}
+              
+              {yields.totalPercent > 0 && (
+                <div style={{
+                  marginBottom: '20px',
+                  padding: '15px',
+                  backgroundColor: yields.totalPercent > 110 ? '#f8d7da' : yields.totalPercent > 105 ? '#fff3cd' : '#d4edda',
+                  borderRadius: '5px'
+                }}>
+                  <strong>Total Yield:</strong> {yields.totalPercent.toFixed(2)}%
+                  {yields.totalPercent > 110 && ' (Warning: Unusually high yield - please verify)'}
+                  {yields.totalPercent > 100 && yields.totalPercent <= 110 && ' (Includes processing additions)'}
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  disabled={!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: (!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate) ? '#6c757d' : '#007BFF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: (!batchData.oil_yield || !batchData.cake_yield || !batchData.cake_estimated_rate) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Next: Cost Review
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Cost Review & Override */}
+          {currentStep === 4 && costs && (
+            <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+              <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
+                Cost Review & Adjustments
+              </h3>
+              
+              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#e9ecef' }}>
+                    <th style={{ padding: '10px', textAlign: 'left' }}>Item</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Unit</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Master Rate</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Override</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Quantity</th>
+                    <th style={{ padding: '10px', textAlign: 'right' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '10px' }}>{selectedSeed?.material_name}</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>kg</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>₹{selectedSeed?.weighted_avg_cost.toFixed(2)}</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>{batchData.seed_quantity_before_drying}</td>
+                    <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.seedCost.toFixed(2)}</td>
+                  </tr>
+                  
+                  {costElements.map(element => {
+                    const detail = costs.costDetails.find(d => d.element_name === element.element_name);
+                    return (
+                      <tr key={element.element_id}>
+                        <td style={{ padding: '10px' }}>{element.element_name}</td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>{element.unit_type}</td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>₹{element.default_rate.toFixed(2)}</td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <input
+                            type="number"
+                            value={batchData.cost_overrides[element.element_id] || ''}
+                            onChange={e => {
+                              const value = e.target.value;
+                              setBatchData({
+                                ...batchData,
+                                cost_overrides: {
+                                  ...batchData.cost_overrides,
+                                  [element.element_id]: value === '' ? null : value
+                                }
+                              });
+                            }}
+                            onBlur={e => {
+                              // Clean up on blur - remove if empty
+                              if (e.target.value === '') {
+                                const newOverrides = { ...batchData.cost_overrides };
+                                delete newOverrides[element.element_id];
+                                setBatchData({
+                                  ...batchData,
+                                  cost_overrides: newOverrides
+                                });
+                              }
+                            }}
+                            placeholder={element.default_rate.toString()}
+                            style={{ width: '80px', padding: '5px', border: '1px solid #ced4da', borderRadius: '3px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>{detail?.quantity.toFixed(2)}</td>
+                        <td style={{ padding: '10px', textAlign: 'right' }}>₹{detail?.total_cost.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                  
+                  <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+                    <td colSpan="5" style={{ padding: '10px' }}>Total Production Cost</td>
+                    <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.totalCost.toFixed(2)}</td>
+                  </tr>
+                  
+                  <tr style={{ backgroundColor: '#d4edda' }}>
+                    <td style={{ padding: '10px' }}>Less: Oil Cake Revenue</td>
+                    <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
+                      {batchData.cake_yield} kg × ₹{batchData.cake_estimated_rate}
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
+                    <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.cakeRevenue.toFixed(2)}</td>
+                  </tr>
+                  
+                  {batchData.sludge_yield && (
+                    <tr style={{ backgroundColor: '#d4edda' }}>
+                      <td style={{ padding: '10px' }}>Less: Sludge Revenue</td>
+                      <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
+                        {batchData.sludge_yield} kg × ₹{batchData.sludge_estimated_rate}
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.sludgeRevenue.toFixed(2)}</td>
+                    </tr>
+                  )}
+                  
+                  <tr style={{ backgroundColor: '#343a40', color: 'white', fontSize: '18px' }}>
+                    <td colSpan="5" style={{ padding: '15px' }}>Net Oil Cost</td>
+                    <td style={{ padding: '15px', textAlign: 'right' }}>₹{costs.netOilCost.toFixed(2)}</td>
+                  </tr>
+                  
+                  <tr style={{ backgroundColor: '#495057', color: 'white' }}>
+                    <td colSpan="5" style={{ padding: '10px' }}>
+                      Cost per kg Oil ({batchData.oil_yield} kg)
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'right' }}>
+                      ₹{costs.perKgOilCost.toFixed(2)}/kg
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  style={{
+                    flex: 2,
+                    padding: '12px',
+                    backgroundColor: loading ? '#6c757d' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {loading ? 'Creating Batch...' : 'Create Batch'}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+          <h3 style={{ fontSize: '18px', marginBottom: '20px', color: '#495057' }}>
+            Batch Production History
+          </h3>
           
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-            <button
-              onClick={() => setCurrentStep(3)}
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Previous
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              style={{
-                flex: 2,
-                padding: '12px',
-                backgroundColor: loading ? '#6c757d' : '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              {loading ? 'Creating Batch...' : 'Create Batch'}
-            </button>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#e9ecef' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Date</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Batch Code</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Traceable Code</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Oil Type</th>
+                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Oil Yield</th>
+                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Yield %</th>
+                  <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Cost/kg</th>
+                  <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batchHistory.map((batch) => (
+                  <tr key={batch.batch_id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                    <td style={{ padding: '12px' }}>{formatDate(batch.production_date)}</td>
+                    <td style={{ padding: '12px' }}>{batch.batch_code}</td>
+                    <td style={{ 
+                      padding: '12px', 
+                      fontFamily: 'monospace', 
+                      fontSize: '13px',
+                      backgroundColor: '#f8f9fa'
+                    }}>
+                      {batch.traceable_code || '-'}
+                    </td>
+                    <td style={{ padding: '12px' }}>{batch.oil_type}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      {batch.oil_yield} kg
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: batch.oil_yield_percent > 40 ? '#d4edda' : '#fff3cd',
+                        color: batch.oil_yield_percent > 40 ? '#155724' : '#856404'
+                      }}>
+                        {batch.oil_yield_percent.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      ₹{batch.oil_cost_per_kg.toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
