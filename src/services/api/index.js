@@ -1,4 +1,6 @@
-// src/services/api/index.js
+// API Service for PUVI Oil Manufacturing System
+// File Path: puvi-frontend/src/services/api/index.js
+
 import axios from 'axios';
 import qs from 'qs';
 
@@ -71,12 +73,13 @@ const api = {
     getBlendHistory: (params) => apiClient.get('/api/blend_history', { params }),
   },
 
-  // Material Sales Module (to be implemented)
+  // Material Sales Module - UPDATED with actual endpoints
   sales: {
-    getMaterialSalesInventory: () => apiClient.get('/api/material_sales_inventory'),
+    getByproductTypes: () => apiClient.get('/api/byproduct_types'),
+    getMaterialSalesInventory: (params) => apiClient.get('/api/material_sales_inventory', { params }),
     addMaterialSale: (data) => apiClient.post('/api/add_material_sale', data),
     getMaterialSalesHistory: (params) => apiClient.get('/api/material_sales_history', { params }),
-    allocateOilCakeSale: (data) => apiClient.post('/api/allocate_oil_cake_sale', data),
+    getCostReconciliationReport: () => apiClient.get('/api/cost_reconciliation_report'),
   },
 
   // System endpoints
