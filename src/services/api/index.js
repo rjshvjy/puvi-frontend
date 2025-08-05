@@ -1,5 +1,6 @@
 // src/services/api/index.js
 import axios from 'axios';
+import qs from 'qs';
 
 // Base configuration
 const API_BASE_URL = 'https://puvi-backend.onrender.com';
@@ -11,6 +12,8 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Use qs to serialize query parameters to fix material filtering issue
+  paramsSerializer: params => qs.stringify(params, { arrayFormat: 'repeat' })
 });
 
 // Response interceptor to handle the standardized response format
