@@ -63,6 +63,14 @@ const api = {
     getBatchHistory: (params) => apiClient.get('/api/batch_history', { params }),
   },
 
+  // Blending Module
+  blending: {
+    getOilTypes: () => apiClient.get('/api/oil_types_for_blending'),
+    getBatchesForOilType: (oilType) => apiClient.get('/api/batches_for_oil_type', { params: { oil_type: oilType } }),
+    createBlend: (data) => apiClient.post('/api/create_blend', data),
+    getBlendHistory: (params) => apiClient.get('/api/blend_history', { params }),
+  },
+
   // Material Sales Module (to be implemented)
   sales: {
     getMaterialSalesInventory: () => apiClient.get('/api/material_sales_inventory'),
