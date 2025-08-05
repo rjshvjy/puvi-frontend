@@ -291,31 +291,16 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '20px'
-      }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', margin: 0 }}>
-          Batch Production Module
-        </h2>
+    <div className="batch-production-container">
+      <div className="batch-header">
+        <h2>Batch Production Module</h2>
         <button
+          className="view-history-btn"
           onClick={() => {
             setShowHistory(!showHistory);
             if (!showHistory && batchHistory.length === 0) {
               fetchBatchHistory();
             }
-          }}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '14px'
           }}
         >
           {showHistory ? 'Hide History' : 'View History'}
@@ -323,15 +308,7 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
       </div>
 
       {message && (
-        <div style={{
-          padding: '15px',
-          marginBottom: '20px',
-          borderRadius: '4px',
-          backgroundColor: message.includes('✅') ? '#d4edda' : '#f8d7da',
-          color: message.includes('✅') ? '#155724' : '#721c24',
-          border: `1px solid ${message.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`,
-          whiteSpace: 'pre-line'
-        }}>
+        <div className={`message ${message.includes('✅') ? 'success' : 'error'}`}>
           {message}
         </div>
       )}
@@ -339,20 +316,11 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
       {!showHistory ? (
         <>
           {/* Progress Steps */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
+          <div className="progress-steps">
             {['Basic Info', 'Seed & Drying', 'Outputs', 'Cost Review'].map((step, index) => (
               <div
                 key={index}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px',
-                  backgroundColor: currentStep === index + 1 ? '#007BFF' : '#e9ecef',
-                  color: currentStep === index + 1 ? 'white' : '#6c757d',
-                  borderRadius: '5px',
-                  margin: '0 5px',
-                  cursor: currentStep > index + 1 ? 'pointer' : 'default'
-                }}
+                className={`progress-step ${currentStep === index + 1 ? 'active' : 'inactive'} ${currentStep > index + 1 ? 'clickable' : ''}`}
                 onClick={() => currentStep > index + 1 && setCurrentStep(index + 1)}
               >
                 {step}
@@ -362,90 +330,71 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
 
           {/* Step 1: Basic Information */}
           {currentStep === 1 && (
-            <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-              <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-                Batch Identification
-              </h3>
+            <div className="step-content">
+              <h3>Batch Identification</h3>
               
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-                  Production Date *
-                </label>
+              <div className="form-group">
+                <label>Production Date *</label>
                 <input
                   type="date"
+                  className="form-control"
                   value={batchData.production_date}
                   onChange={e => setBatchData({ ...batchData, production_date: e.target.value })}
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
                 />
               </div>
               
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
-                  Batch Description *
-                </label>
+              <div className="form-group">
+                <label>Batch Description *</label>
                 <input
                   type="text"
+                  className="form-control"
                   placeholder="e.g., Morning, Premium, Test"
                   value={batchData.batch_description}
                   onChange={e => setBatchData({ ...batchData, batch_description: e.target.value })}
-                  style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
                 />
-                <small style={{ color: '#6c757d' }}>
+                <small className="batch-code-preview">
                   Batch Code: BATCH-{batchData.production_date.split('-').reverse().join('')}-{batchData.batch_description || '[Description]'}
                 </small>
               </div>
               
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600' }}>
-                  Select Seed Material *
-                </label>
-                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {availableSeeds.map(seed => (
-                    <div
-                      key={seed.material_id}
-                      onClick={() => handleSeedSelection(seed)}
-                      style={{
-                        padding: '15px',
-                        marginBottom: '10px',
-                        backgroundColor: selectedSeed?.material_id === seed.material_id ? '#007BFF' : 'white',
-                        color: selectedSeed?.material_id === seed.material_id ? 'white' : 'black',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        border: '1px solid #ddd'
-                      }}
-                    >
-                      <strong>{seed.material_name}</strong>
-                      {seed.short_code && <span style={{ marginLeft: '10px', opacity: 0.8 }}>({seed.short_code})</span>}
-                      <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                        Available: {seed.available_quantity} kg @ ₹{seed.weighted_avg_cost.toFixed(2)}/kg
-                      </div>
-                      {seed.latest_purchase_code && (
-                        <div style={{ 
-                          fontSize: '12px', 
-                          marginTop: '5px', 
-                          fontFamily: 'monospace',
-                          opacity: 0.8 
-                        }}>
-                          Purchase Code: {seed.latest_purchase_code}
-                        </div>
-                      )}
+              <div className="form-group">
+                <label className="seed-selection-label">Select Seed Material *</label>
+                <div className="seed-selection-container">
+                  {availableSeeds.length === 0 ? (
+                    <div className="seed-selection-empty">
+                      <p>No seeds available in inventory</p>
+                      <small>Please create a purchase first to add seed inventory</small>
                     </div>
-                  ))}
+                  ) : (
+                    availableSeeds.map(seed => (
+                      <div
+                        key={seed.material_id}
+                        onClick={() => handleSeedSelection(seed)}
+                        className={`seed-item ${selectedSeed?.material_id === seed.material_id ? 'selected' : ''}`}
+                      >
+                        <strong>
+                          {seed.material_name}
+                          {seed.short_code && <span className="short-code">({seed.short_code})</span>}
+                        </strong>
+                        <div className="details">
+                          Available: {seed.available_quantity} kg @ ₹{seed.weighted_avg_cost.toFixed(2)}/kg
+                        </div>
+                        {seed.latest_purchase_code && (
+                          <div className="purchase-code">
+                            Purchase Code: {seed.latest_purchase_code}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               
               <button
                 onClick={() => setCurrentStep(2)}
                 disabled={!selectedSeed || !batchData.batch_description}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  backgroundColor: (!selectedSeed || !batchData.batch_description) ? '#6c757d' : '#007BFF',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: (!selectedSeed || !batchData.batch_description) ? 'not-allowed' : 'pointer'
-                }}
+                className="btn btn-primary"
+                style={{ width: '100%' }}
               >
                 Next: Seed & Drying
               </button>
