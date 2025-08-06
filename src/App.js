@@ -7,7 +7,8 @@ import Purchase from './modules/Purchase';
 import MaterialWriteoff from './modules/MaterialWriteoff';
 import BatchProduction from './modules/BatchProduction';
 import Blending from './modules/Blending';
-import MaterialSales from './modules/MaterialSales';  // NEW - Import Material Sales
+import MaterialSales from './modules/MaterialSales';
+import CostManagement from './modules/CostManagement';  // NEW - Import Cost Management
 
 function App() {
   const [activeModule, setActiveModule] = useState('info');
@@ -121,6 +122,22 @@ function App() {
         >
           Material Sales
         </button>
+        
+        <button 
+          onClick={() => setActiveModule('costManagement')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeModule === 'costManagement' ? '#16a085' : '#ecf0f1',
+            color: activeModule === 'costManagement' ? 'white' : '#2c3e50',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: activeModule === 'costManagement' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Cost Management
+        </button>
       </nav>
 
       {activeModule === 'info' && (
@@ -131,40 +148,52 @@ function App() {
             <li>✅ Material Writeoff - Functional</li>
             <li>✅ Batch Production - With Traceability</li>
             <li>✅ Blending Module - Functional</li>
-            <li>✅ Material Sales - With FIFO & Cost Reconciliation (NEW)</li>
+            <li>✅ Material Sales - With FIFO & Cost Reconciliation</li>
+            <li>🔄 Cost Management - Frontend Complete, Integration Pending</li>
             <li>🔄 Traceability System - Partially Implemented</li>
             <li>📋 SKU Production/Packaging - To be implemented</li>
             <li>📋 Reports & Analytics - To be implemented</li>
           </ul>
           
-          <h3 style={{ marginTop: '30px' }}>Traceability Status</h3>
+          <h3 style={{ marginTop: '30px' }}>Cost Management Module Status</h3>
           <ul>
-            <li>✅ Purchase Traceable Codes (e.g., GNS-AK-1-05082025-ABC)</li>
-            <li>✅ Batch Production Traceable Codes (e.g., GNO-AK-05082025-PUV)</li>
-            <li>✅ Blending Traceable Codes (e.g., BLEND-Groundnut-05082025)</li>
-            <li>✅ Material Sales Tracking with Batch Allocation</li>
-            <li>📋 Package/Bottle Codes - Pending</li>
-            <li>📋 Master Data Management UI - Pending</li>
+            <li>✅ <strong>Backend:</strong> All 7 API endpoints working</li>
+            <li>✅ <strong>Database:</strong> 14 cost elements defined</li>
+            <li>✅ <strong>Frontend:</strong> Main component with 3 tabs</li>
+            <li>✅ <strong>Time Tracking:</strong> Capture crushing hours with cost calculation</li>
+            <li>✅ <strong>Cost Override:</strong> Rate adjustment with audit logging</li>
+            <li>✅ <strong>Validation:</strong> Phase 1 warnings (non-blocking)</li>
+            <li>🔄 <strong>BatchProduction Integration:</strong> TimeTracker to be added to Step 3</li>
+            <li>🔄 <strong>Extended Costs Display:</strong> To be added to Step 4</li>
           </ul>
           
-          <h3 style={{ marginTop: '30px' }}>Recent Updates - Material Sales Module</h3>
+          <h3 style={{ marginTop: '30px' }}>14 Cost Elements Active</h3>
           <ul>
-            <li>🔔 <strong>NEW:</strong> Material Sales Module implemented</li>
-            <li>🔔 FIFO allocation for by-product sales (Oil Cake, Sludge)</li>
-            <li>🔔 Retroactive cost adjustments to batch production</li>
-            <li>🔔 Real-time cost impact preview before sale</li>
-            <li>🔔 Complete audit trail with batch allocations</li>
-            <li>🔔 Cost reconciliation report showing oil cost adjustments</li>
-            <li>🔔 Support for multiple by-product types (expandable for future items)</li>
+            <li><strong>Labor Costs:</strong> Drying Labour (₹0.90/kg), Loading (₹0.12/kg), Crushing (₹150/hr), Filtering (₹550/batch)</li>
+            <li><strong>Utilities:</strong> Electricity-Crushing (₹75/hr), Common Costs (₹2/kg)</li>
+            <li><strong>Consumables:</strong> Filter Cloth (₹120), Cleaning Materials (₹150), Quality Testing (₹1000)</li>
+            <li><strong>Maintenance:</strong> Machine Maintenance (₹500 - optional)</li>
+            <li><strong>Transport:</strong> Oil Outward (₹1.20/kg - optional)</li>
           </ul>
           
-          <h3 style={{ marginTop: '30px' }}>Key Features - Material Sales</h3>
+          <h3 style={{ marginTop: '30px' }}>Recent Updates - Cost Management</h3>
           <ul>
-            <li>📊 <strong>FIFO Allocation:</strong> Automatically allocates from oldest inventory first</li>
-            <li>💰 <strong>Cost Reconciliation:</strong> Adjusts batch oil costs based on actual vs estimated by-product revenue</li>
-            <li>📈 <strong>Real-time Preview:</strong> Shows cost impact before confirming sale</li>
-            <li>📋 <strong>Complete History:</strong> Track all sales with batch allocations and adjustments</li>
-            <li>🔄 <strong>Flexible System:</strong> Handles Oil Cake, Sludge, and future by-products</li>
+            <li>🔔 <strong>NEW:</strong> Cost Management Module frontend completed</li>
+            <li>🔔 View and manage all 14 cost elements</li>
+            <li>🔔 Time tracking for crushing process (labour + electricity)</li>
+            <li>🔔 Batch cost review with validation warnings</li>
+            <li>🔔 Cost override capability with audit trail</li>
+            <li>🔔 Validation report showing batches with missing costs</li>
+            <li>🔔 Phase 1 mode - warnings only, operations not blocked</li>
+          </ul>
+          
+          <h3 style={{ marginTop: '30px' }}>Next Steps</h3>
+          <ul>
+            <li>📌 Integrate TimeTracker component into BatchProduction Step 3</li>
+            <li>📌 Add extended costs display to BatchProduction Step 4</li>
+            <li>📌 Create supporting components (CostCapture, CostSummary)</li>
+            <li>📌 Test complete cost flow from batch creation to validation</li>
+            <li>📌 Phase 2: Implement blocking validation (future)</li>
           </ul>
         </div>
       )}
@@ -174,6 +203,7 @@ function App() {
       {activeModule === 'batch' && <BatchProduction />}
       {activeModule === 'blending' && <Blending />}
       {activeModule === 'sales' && <MaterialSales />}
+      {activeModule === 'costManagement' && <CostManagement />}
     </div>
   );
 }
