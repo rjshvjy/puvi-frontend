@@ -1,0 +1,659 @@
+/* Cost Management Module Styles for PUVI Oil Manufacturing System */
+/* File Path: puvi-frontend/src/modules/CostManagement/CostManagement.css */
+
+/* ==================== Base Container Styles ==================== */
+.cost-management-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.cost-management-header {
+  margin-bottom: 20px;
+}
+
+.cost-management-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.cost-management-subtitle {
+  font-size: 14px;
+  color: #6c757d;
+}
+
+/* ==================== Tab Navigation ==================== */
+.cost-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #dee2e6;
+  padding-bottom: 10px;
+}
+
+.cost-tab {
+  padding: 10px 20px;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #495057;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s ease;
+}
+
+.cost-tab:hover {
+  background-color: #f8f9fa;
+}
+
+.cost-tab.active {
+  background-color: #007bff;
+  color: white;
+}
+
+/* ==================== Content Area ==================== */
+.cost-content {
+  background-color: #f8f9fa;
+  padding: 25px;
+  border-radius: 8px;
+  min-height: 400px;
+}
+
+/* ==================== Card Styles ==================== */
+.cost-card {
+  background-color: white;
+  padding: 20px;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.cost-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.cost-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #495057;
+}
+
+/* ==================== Category Colors ==================== */
+.cost-category-labor {
+  background-color: #d4edda;
+}
+
+.cost-category-utilities {
+  background-color: #cce5ff;
+}
+
+.cost-category-consumables {
+  background-color: #fff3cd;
+}
+
+.cost-category-transport {
+  background-color: #f8d7da;
+}
+
+.cost-category-quality {
+  background-color: #e2e3e5;
+}
+
+.cost-category-maintenance {
+  background-color: #d1ecf1;
+}
+
+/* ==================== Cost Table Styles ==================== */
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+.cost-table thead {
+  background-color: #e9ecef;
+}
+
+.cost-table th {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cost-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 14px;
+}
+
+.cost-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.cost-table-number {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* ==================== Cost Item Styles ==================== */
+.cost-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 120px 120px 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.cost-item:last-child {
+  border-bottom: none;
+}
+
+.cost-item-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.cost-item-name {
+  font-size: 14px;
+  color: #495057;
+}
+
+.cost-item-optional {
+  font-size: 11px;
+  color: #6c757d;
+  margin-left: 5px;
+}
+
+.cost-item-required {
+  font-size: 11px;
+  color: #dc3545;
+  margin-left: 5px;
+}
+
+.cost-item-input {
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.cost-item-calculated {
+  padding: 6px 10px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: right;
+}
+
+/* ==================== Time Tracking Styles ==================== */
+.time-tracker-container {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.time-tracker-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #495057;
+}
+
+.time-tracker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.time-tracker-duration {
+  padding: 15px;
+  background-color: #cce5ff;
+  border-radius: 5px;
+  margin-bottom: 15px;
+}
+
+.time-tracker-warning {
+  padding: 15px;
+  background-color: #fff3cd;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  color: #856404;
+}
+
+/* ==================== Cost Summary Styles ==================== */
+.cost-summary-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 25px;
+  border: 1px solid #dee2e6;
+}
+
+.cost-summary-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.cost-summary-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 10px;
+}
+
+.cost-summary-section {
+  margin-bottom: 20px;
+}
+
+.cost-summary-total {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  padding: 15px;
+  background-color: #343a40;
+  color: white;
+  border-radius: 5px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.cost-summary-per-kg {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  padding: 12px 15px;
+  background-color: #495057;
+  color: white;
+  border-radius: 5px;
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+/* ==================== Override Panel Styles ==================== */
+.override-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.override-modal {
+  background-color: white;
+  border-radius: 8px;
+  width: 600px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.override-modal-header {
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+}
+
+.override-modal-body {
+  padding: 20px;
+}
+
+.override-modal-footer {
+  padding: 20px;
+  border-top: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ==================== Badge Styles ==================== */
+.cost-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.cost-badge-optional {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.cost-badge-required {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.cost-badge-override {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.cost-badge-warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.cost-badge-success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+/* ==================== Form Styles ==================== */
+.cost-form-group {
+  margin-bottom: 15px;
+}
+
+.cost-form-label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #495057;
+}
+
+.cost-form-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 15px;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.cost-form-input:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.cost-form-input.error {
+  border-color: #dc3545;
+}
+
+.cost-form-error {
+  color: #dc3545;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.cost-form-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 15px;
+  min-height: 80px;
+  resize: vertical;
+}
+
+/* ==================== Button Styles ==================== */
+.cost-btn {
+  padding: 10px 20px;
+  border-radius: 4px;
+  border: none;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cost-btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.cost-btn-primary:hover {
+  background-color: #0056b3;
+}
+
+.cost-btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.cost-btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+.cost-btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.cost-btn-success:hover {
+  background-color: #218838;
+}
+
+.cost-btn-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.cost-btn-warning:hover {
+  background-color: #e0a800;
+}
+
+.cost-btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.cost-btn-danger:hover {
+  background-color: #c82333;
+}
+
+.cost-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ==================== Message Styles ==================== */
+.cost-message {
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.cost-message-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.cost-message-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.cost-message-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.cost-message-info {
+  background-color: #cce5ff;
+  color: #004085;
+  border: 1px solid #b8daff;
+}
+
+/* ==================== Loading Styles ==================== */
+.cost-loading {
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.cost-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 123, 255, 0.1);
+  border-radius: 50%;
+  border-top-color: #007bff;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==================== Print Styles ==================== */
+@media print {
+  .cost-management-container {
+    padding: 0;
+    max-width: 100%;
+  }
+  
+  .cost-tabs,
+  .cost-btn,
+  .cost-form-input,
+  .cost-item-checkbox {
+    display: none !important;
+  }
+  
+  .cost-card {
+    box-shadow: none;
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+  
+  .cost-table {
+    font-size: 12px;
+  }
+  
+  .cost-summary-container {
+    border: 1px solid #000;
+  }
+}
+
+/* ==================== Responsive Styles ==================== */
+@media (max-width: 768px) {
+  .cost-management-container {
+    padding: 15px;
+  }
+  
+  .cost-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .cost-tab {
+    flex: 1;
+    min-width: 100px;
+  }
+  
+  .cost-item {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  
+  .time-tracker-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .cost-table {
+    font-size: 12px;
+  }
+  
+  .cost-table th,
+  .cost-table td {
+    padding: 8px;
+  }
+  
+  .override-modal {
+    width: 95%;
+  }
+}
+
+@media (max-width: 480px) {
+  .cost-management-title {
+    font-size: 20px;
+  }
+  
+  .cost-content {
+    padding: 15px;
+  }
+  
+  .cost-card {
+    padding: 15px;
+  }
+  
+  .cost-summary-total,
+  .cost-summary-per-kg {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
+
+/* ==================== Utility Classes ==================== */
+.cost-text-right {
+  text-align: right;
+}
+
+.cost-text-center {
+  text-align: center;
+}
+
+.cost-text-muted {
+  color: #6c757d;
+}
+
+.cost-font-bold {
+  font-weight: 600;
+}
+
+.cost-mt-10 {
+  margin-top: 10px;
+}
+
+.cost-mb-10 {
+  margin-bottom: 10px;
+}
+
+.cost-mt-20 {
+  margin-top: 20px;
+}
+
+.cost-mb-20 {
+  margin-bottom: 20px;
+}
+
+.cost-p-10 {
+  padding: 10px;
+}
+
+.cost-p-20 {
+  padding: 20px;
+}
+
+.cost-hidden {
+  display: none;
+}
