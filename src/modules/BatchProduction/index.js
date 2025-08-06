@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import TimeTracker from '../CostManagement/TimeTracker'; // NEW - Import TimeTracker
 import './BatchProduction.css';
 
 const BatchProduction = () => {
@@ -11,6 +12,10 @@ const BatchProduction = () => {
   const [message, setMessage] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [batchHistory, setBatchHistory] = useState([]);
+  
+  // NEW - Time tracking data
+  const [timeTrackingData, setTimeTrackingData] = useState(null);
+  const [extendedCostElements, setExtendedCostElements] = useState([]);
   
   // Form data
   const [batchData, setBatchData] = useState({
@@ -26,7 +31,11 @@ const BatchProduction = () => {
     cake_estimated_rate: '',
     sludge_estimated_rate: '',
     cost_overrides: {},
-    seed_purchase_code: '' // Added for traceability
+    seed_purchase_code: '', // Added for traceability
+    // NEW - Time tracking fields
+    crushing_start: '',
+    crushing_end: '',
+    crushing_hours: 0
   });
 
   const [selectedSeed, setSelectedSeed] = useState(null);
@@ -36,6 +45,7 @@ const BatchProduction = () => {
     fetchAvailableSeeds();
     fetchCostElements();
     fetchOilCakeRates();
+    fetchExtendedCostElements(); // NEW
   }, []);
 
   const fetchAvailableSeeds = async () => {
@@ -57,6 +67,18 @@ const BatchProduction = () => {
       }
     } catch (error) {
       console.error('Error fetching cost elements:', error);
+    }
+  };
+
+  // NEW - Fetch extended cost elements
+  const fetchExtendedCostElements = async () => {
+    try {
+      const response = await api.costManagement.getCostElementsByStage('batch');
+      if (response.success) {
+        setExtendedCostElements(response.cost_elements);
+      }
+    } catch (error) {
+      console.error('Error fetching extended cost elements:', error);
     }
   };
 
@@ -91,6 +113,76 @@ const BatchProduction = () => {
     return isNaN(parsed) ? defaultValue : parsed;
   };
 
+  // NEW - Handle time tracking data
+  const handleTimeTracking = (timeData) => {
+    setTimeTrackingData(timeData);
+    setBatchData(prev => ({
+      ...prev,
+      crushing_start: timeData.start_datetime,
+      crushing_end: timeData.end_datetime,
+      crushing_hours: timeData.rounded_hours
+    }));
+  };
+
+  // NEW - Calculate extended costs
+  const calculateExtendedCosts = () => {
+    if (!extendedCostElements || extendedCostElements.length === 0) return [];
+    
+    const seedQty = safeParseFloat(batchData.seed_quantity_before_drying);
+    const seedQtyAfter = safeParseFloat(batchData.seed_quantity_after_drying);
+    const crushingHours = timeTrackingData?.rounded_hours || 0;
+    
+    const costs = [];
+    
+    extendedCostElements.forEach(element => {
+      let quantity = 0;
+      let cost = 0;
+      let included = true;
+      
+      switch (element.calculation_method) {
+        case 'per_kg':
+          if (element.element_name.includes('Drying')) {
+            quantity = seedQty;
+          } else if (element.element_name.includes('Common')) {
+            quantity = safeParseFloat(batchData.oil_yield);
+          } else {
+            quantity = seedQty;
+          }
+          cost = quantity * element.default_rate;
+          break;
+          
+        case 'per_hour':
+          quantity = crushingHours;
+          cost = quantity * element.default_rate;
+          included = crushingHours > 0;
+          break;
+          
+        case 'fixed':
+          quantity = 1;
+          cost = element.default_rate;
+          break;
+          
+        default:
+          quantity = 0;
+          cost = 0;
+      }
+      
+      if (included && (cost > 0 || !element.is_optional)) {
+        costs.push({
+          element_name: element.element_name,
+          category: element.category,
+          quantity: quantity,
+          rate: element.default_rate,
+          total_cost: cost,
+          is_optional: element.is_optional,
+          calculation_method: element.calculation_method
+        });
+      }
+    });
+    
+    return costs;
+  };
+
   // Calculate derived values
   const calculateDryingLoss = () => {
     const before = safeParseFloat(batchData.seed_quantity_before_drying);
@@ -123,13 +215,12 @@ const BatchProduction = () => {
     let totalCost = seedCost;
     const costDetails = [];
     
-    // Calculate cost for each element
+    // Calculate cost for each element (basic costs)
     costElements.forEach(element => {
       let quantity = 0;
       
       // Check if there's an override value
       const overrideValue = batchData.cost_overrides[element.element_id];
-      // Use override if it exists and is not empty/null, otherwise use default
       let rate;
       if (overrideValue !== null && overrideValue !== undefined && overrideValue !== '') {
         rate = safeParseFloat(overrideValue);
@@ -159,18 +250,24 @@ const BatchProduction = () => {
       });
     });
     
+    // NEW - Add extended costs
+    const extendedCosts = calculateExtendedCosts();
+    const extendedCostTotal = extendedCosts.reduce((sum, cost) => sum + cost.total_cost, 0);
+    
     // Calculate revenues
     const cakeRevenue = safeParseFloat(batchData.cake_yield) * safeParseFloat(batchData.cake_estimated_rate);
     const sludgeRevenue = safeParseFloat(batchData.sludge_yield) * safeParseFloat(batchData.sludge_estimated_rate);
     
-    const netOilCost = totalCost - cakeRevenue - sludgeRevenue;
+    const netOilCost = totalCost + extendedCostTotal - cakeRevenue - sludgeRevenue;
     const oilQty = safeParseFloat(batchData.oil_yield);
     const perKgOilCost = oilQty > 0 ? netOilCost / oilQty : 0;
     
     return {
       seedCost,
       costDetails,
+      extendedCosts, // NEW
       totalCost,
+      extendedCostTotal, // NEW
       cakeRevenue,
       sludgeRevenue,
       netOilCost,
@@ -235,17 +332,47 @@ const BatchProduction = () => {
         seed_cost_total: costs.seedCost,
         cost_details: costs.costDetails,
         estimated_cake_revenue: costs.cakeRevenue,
-        estimated_sludge_revenue: costs.sludgeRevenue
+        estimated_sludge_revenue: costs.sludgeRevenue,
+        // NEW - Include time tracking data
+        time_tracking: timeTrackingData ? {
+          start_datetime: timeTrackingData.start_datetime,
+          end_datetime: timeTrackingData.end_datetime,
+          operator_name: timeTrackingData.operator_name,
+          notes: timeTrackingData.notes
+        } : null
       };
       
       const response = await api.batch.addBatch(payload);
       
       if (response.success) {
+        // NEW - Save time tracking if available
+        if (timeTrackingData && response.batch_id) {
+          await api.costManagement.saveTimeTracking({
+            ...timeTrackingData,
+            batch_id: response.batch_id
+          });
+        }
+        
+        // NEW - Save extended costs
+        if (costs.extendedCosts.length > 0 && response.batch_id) {
+          await api.costManagement.saveBatchCosts({
+            batch_id: response.batch_id,
+            costs: costs.extendedCosts.map(cost => ({
+              element_name: cost.element_name,
+              quantity: cost.quantity,
+              rate: cost.rate,
+              is_applied: true
+            })),
+            created_by: 'BatchProduction'
+          });
+        }
+        
         setMessage(`✅ Batch created successfully!
 Batch Code: ${response.batch_code}
 Traceable Code: ${response.traceable_code}
 Oil Cost: ₹${response.oil_cost_per_kg.toFixed(2)}/kg
-Total Oil Produced: ${response.total_oil_produced} kg`);
+Total Oil Produced: ${response.total_oil_produced} kg
+${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : ''}`);
         
         // Reset form
         setBatchData({
@@ -261,9 +388,13 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
           cake_estimated_rate: '',
           sludge_estimated_rate: '',
           cost_overrides: {},
-          seed_purchase_code: ''
+          seed_purchase_code: '',
+          crushing_start: '',
+          crushing_end: '',
+          crushing_hours: 0
         });
         setSelectedSeed(null);
+        setTimeTrackingData(null);
         setCurrentStep(1);
         
         // Refresh history if visible
@@ -495,12 +626,19 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
             </div>
           )}
 
-          {/* Step 3: Production Outputs */}
+          {/* Step 3: Production Outputs - WITH TIME TRACKING */}
           {currentStep === 3 && (
             <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
               <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-                Production Outputs
+                Production Outputs & Time Tracking
               </h3>
+              
+              {/* NEW - Time Tracking Component */}
+              <TimeTracker 
+                batchId={null} // Don't save yet - will save after batch creation
+                onTimeCalculated={handleTimeTracking}
+                showCostBreakdown={true}
+              />
               
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
@@ -627,14 +765,18 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
             </div>
           )}
 
-          {/* Step 4: Cost Review & Override */}
+          {/* Step 4: Cost Review & Override - WITH EXTENDED COSTS */}
           {currentStep === 4 && costs && (
             <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
               <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
-                Cost Review & Adjustments
+                Complete Cost Review & Adjustments
               </h3>
               
-              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+              {/* Basic Costs Table */}
+              <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#495057' }}>
+                Basic Production Costs
+              </h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', marginBottom: '20px' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#e9ecef' }}>
                     <th style={{ padding: '10px', textAlign: 'left' }}>Item</th>
@@ -676,17 +818,6 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
                                 }
                               });
                             }}
-                            onBlur={e => {
-                              // Clean up on blur - remove if empty
-                              if (e.target.value === '') {
-                                const newOverrides = { ...batchData.cost_overrides };
-                                delete newOverrides[element.element_id];
-                                setBatchData({
-                                  ...batchData,
-                                  cost_overrides: newOverrides
-                                });
-                              }
-                            }}
                             placeholder={element.default_rate.toString()}
                             style={{ width: '80px', padding: '5px', border: '1px solid #ced4da', borderRadius: '3px' }}
                           />
@@ -698,13 +829,81 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
                   })}
                   
                   <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
-                    <td colSpan="5" style={{ padding: '10px' }}>Total Production Cost</td>
+                    <td colSpan="5" style={{ padding: '10px' }}>Subtotal Basic Costs</td>
                     <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.totalCost.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* NEW - Extended Costs Table */}
+              {costs.extendedCosts.length > 0 && (
+                <>
+                  <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#495057' }}>
+                    Extended Cost Elements
+                  </h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', marginBottom: '20px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#e9ecef' }}>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Cost Element</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Category</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Quantity/Hours</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Rate</th>
+                        <th style={{ padding: '10px', textAlign: 'right' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {costs.extendedCosts.map((cost, idx) => (
+                        <tr key={idx}>
+                          <td style={{ padding: '10px' }}>
+                            {cost.element_name}
+                            {cost.is_optional && <span style={{ color: '#6c757d', fontSize: '12px' }}> (Optional)</span>}
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '3px',
+                              fontSize: '12px',
+                              backgroundColor: 
+                                cost.category === 'Labor' ? '#d4edda' :
+                                cost.category === 'Utilities' ? '#cce5ff' :
+                                cost.category === 'Consumables' ? '#fff3cd' :
+                                '#e9ecef',
+                              color: '#495057'
+                            }}>
+                              {cost.category}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>
+                            {cost.quantity.toFixed(2)}
+                            {cost.calculation_method === 'per_hour' && ' hrs'}
+                            {cost.calculation_method === 'per_kg' && ' kg'}
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>₹{cost.rate.toFixed(2)}</td>
+                          <td style={{ padding: '10px', textAlign: 'right' }}>₹{cost.total_cost.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+                        <td colSpan="4" style={{ padding: '10px' }}>Subtotal Extended Costs</td>
+                        <td style={{ padding: '10px', textAlign: 'right' }}>₹{costs.extendedCostTotal.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {/* Final Cost Summary */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+                <tbody>
+                  <tr style={{ backgroundColor: '#343a40', color: 'white', fontSize: '16px' }}>
+                    <td colSpan="4" style={{ padding: '12px' }}>Total Production Cost (Basic + Extended)</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      ₹{(costs.totalCost + costs.extendedCostTotal).toFixed(2)}
+                    </td>
                   </tr>
                   
                   <tr style={{ backgroundColor: '#d4edda' }}>
                     <td style={{ padding: '10px' }}>Less: Oil Cake Revenue</td>
-                    <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
+                    <td colSpan="2" style={{ padding: '10px', textAlign: 'center' }}>
                       {batchData.cake_yield} kg × ₹{batchData.cake_estimated_rate}
                     </td>
                     <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
@@ -714,7 +913,7 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
                   {batchData.sludge_yield && (
                     <tr style={{ backgroundColor: '#d4edda' }}>
                       <td style={{ padding: '10px' }}>Less: Sludge Revenue</td>
-                      <td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>
+                      <td colSpan="2" style={{ padding: '10px', textAlign: 'center' }}>
                         {batchData.sludge_yield} kg × ₹{batchData.sludge_estimated_rate}
                       </td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>-</td>
@@ -723,12 +922,12 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
                   )}
                   
                   <tr style={{ backgroundColor: '#343a40', color: 'white', fontSize: '18px' }}>
-                    <td colSpan="5" style={{ padding: '15px' }}>Net Oil Cost</td>
+                    <td colSpan="4" style={{ padding: '15px' }}>Net Oil Cost</td>
                     <td style={{ padding: '15px', textAlign: 'right' }}>₹{costs.netOilCost.toFixed(2)}</td>
                   </tr>
                   
                   <tr style={{ backgroundColor: '#495057', color: 'white' }}>
-                    <td colSpan="5" style={{ padding: '10px' }}>
+                    <td colSpan="4" style={{ padding: '10px' }}>
                       Cost per kg Oil ({batchData.oil_yield} kg)
                     </td>
                     <td style={{ padding: '10px', textAlign: 'right' }}>
@@ -737,6 +936,19 @@ Total Oil Produced: ${response.total_oil_produced} kg`);
                   </tr>
                 </tbody>
               </table>
+
+              {/* Time Tracking Summary */}
+              {timeTrackingData && (
+                <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#cce5ff', borderRadius: '5px' }}>
+                  <strong>⏱️ Time Tracking Summary:</strong>
+                  <ul style={{ marginTop: '10px', marginBottom: 0 }}>
+                    <li>Duration: {timeTrackingData.actual_hours} hours (Billed: {timeTrackingData.rounded_hours} hours)</li>
+                    <li>Crushing Labour: ₹{timeTrackingData.costs.crushing_labour.toFixed(2)}</li>
+                    <li>Electricity: ₹{timeTrackingData.costs.electricity.toFixed(2)}</li>
+                    <li>Total Time Costs: ₹{timeTrackingData.costs.total.toFixed(2)}</li>
+                  </ul>
+                </div>
+              )}
               
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button
