@@ -73,13 +73,36 @@ const api = {
     getBlendHistory: (params) => apiClient.get('/api/blend_history', { params }),
   },
 
-  // Material Sales Module - UPDATED with actual endpoints
+  // Material Sales Module
   sales: {
     getByproductTypes: () => apiClient.get('/api/byproduct_types'),
     getMaterialSalesInventory: (params) => apiClient.get('/api/material_sales_inventory', { params }),
     addMaterialSale: (data) => apiClient.post('/api/add_material_sale', data),
     getMaterialSalesHistory: (params) => apiClient.get('/api/material_sales_history', { params }),
     getCostReconciliationReport: () => apiClient.get('/api/cost_reconciliation_report'),
+  },
+
+  // Cost Management Module - NEW
+  costManagement: {
+    // Get all cost elements or by stage
+    getCostElementsMaster: (params) => apiClient.get('/api/cost_elements/master', { params }),
+    getCostElementsByStage: (stage) => apiClient.get('/api/cost_elements/by_stage', { params: { stage } }),
+    
+    // Time tracking with datetime inputs
+    saveTimeTracking: (data) => apiClient.post('/api/cost_elements/time_tracking', data),
+    
+    // Cost calculations and validation
+    calculateBatchCosts: (data) => apiClient.post('/api/cost_elements/calculate', data),
+    saveBatchCosts: (data) => apiClient.post('/api/cost_elements/save_batch_costs', data),
+    
+    // Get batch cost summary with validation warnings
+    getBatchCostSummary: (batchId) => apiClient.get(`/api/cost_elements/batch_summary/${batchId}`),
+    
+    // Validation report for management
+    getValidationReport: (params) => apiClient.get('/api/cost_elements/validation_report', { params }),
+    
+    // Utility function for cost validation summary
+    getCostValidationSummary: () => apiClient.get('/api/cost_validation_summary'),
   },
 
   // System endpoints
