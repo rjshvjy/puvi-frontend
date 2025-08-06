@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import TimeTracker from '../CostManagement/TimeTracker'; // NEW - Import TimeTracker
+import TimeTracker from '../CostManagement/TimeTracker';
+import CostCapture from '../CostManagement/CostCapture'; // NEW - Import CostCapture
 import './BatchProduction.css';
 
 const BatchProduction = () => {
@@ -16,6 +17,9 @@ const BatchProduction = () => {
   // NEW - Time tracking data
   const [timeTrackingData, setTimeTrackingData] = useState(null);
   const [extendedCostElements, setExtendedCostElements] = useState([]);
+  
+  // NEW - Drying stage costs
+  const [dryingCosts, setDryingCosts] = useState([]);
   
   // Form data
   const [batchData, setBatchData] = useState({
@@ -124,7 +128,7 @@ const BatchProduction = () => {
     }));
   };
 
-  // NEW - Calculate extended costs
+  // NEW - Calculate extended costs (including drying costs)
   const calculateExtendedCosts = () => {
     if (!extendedCostElements || extendedCostElements.length === 0) return [];
     
@@ -134,16 +138,26 @@ const BatchProduction = () => {
     
     const costs = [];
     
+    // Include drying costs from Step 2
+    if (dryingCosts && dryingCosts.length > 0) {
+      dryingCosts.forEach(cost => {
+        costs.push(cost);
+      });
+    }
+    
     extendedCostElements.forEach(element => {
+      // Skip drying stage costs as they're already included
+      if (element.element_name.includes('Drying') || element.element_name.includes('Loading After Drying')) {
+        return;
+      }
+      
       let quantity = 0;
       let cost = 0;
       let included = true;
       
       switch (element.calculation_method) {
         case 'per_kg':
-          if (element.element_name.includes('Drying')) {
-            quantity = seedQty;
-          } else if (element.element_name.includes('Common')) {
+          if (element.element_name.includes('Common')) {
             quantity = safeParseFloat(batchData.oil_yield);
           } else {
             quantity = seedQty;
@@ -353,7 +367,7 @@ const BatchProduction = () => {
           });
         }
         
-        // NEW - Save extended costs
+        // NEW - Save extended costs (including drying costs)
         if (costs.extendedCosts.length > 0 && response.batch_id) {
           await api.costManagement.saveBatchCosts({
             batch_id: response.batch_id,
@@ -395,6 +409,7 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
         });
         setSelectedSeed(null);
         setTimeTrackingData(null);
+        setDryingCosts([]); // Reset drying costs
         setCurrentStep(1);
         
         // Refresh history if visible
@@ -532,7 +547,7 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
             </div>
           )}
 
-          {/* Step 2: Seed Input & Drying */}
+          {/* Step 2: Seed Input & Drying - WITH COST CAPTURE */}
           {currentStep === 2 && (
             <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
               <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
@@ -592,7 +607,42 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
                 </div>
               )}
               
-              <div style={{ display: 'flex', gap: '10px' }}>
+              {/* NEW - Cost Capture Component for Drying Stage */}
+              {batchData.seed_quantity_before_drying && (
+                <CostCapture
+                  module="batch"
+                  stage="drying"
+                  quantity={safeParseFloat(batchData.seed_quantity_before_drying)}
+                  onCostsUpdate={(costs) => setDryingCosts(costs)}
+                  showSummary={true}
+                  allowOverride={true}
+                />
+              )}
+              
+              {/* Drying Costs Summary */}
+              {dryingCosts.length > 0 && (
+                <div style={{ 
+                  marginTop: '15px', 
+                  padding: '15px', 
+                  backgroundColor: '#d4edda', 
+                  borderRadius: '5px',
+                  fontSize: '14px' 
+                }}>
+                  <strong>Drying Stage Costs Applied:</strong>
+                  <ul style={{ marginTop: '10px', marginBottom: 0 }}>
+                    {dryingCosts.map((cost, idx) => (
+                      <li key={idx}>
+                        {cost.element_name}: ₹{cost.total_cost.toFixed(2)}
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
+                    Total Drying Costs: ₹{dryingCosts.reduce((sum, c) => sum + c.total_cost, 0).toFixed(2)}
+                  </div>
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button
                   onClick={() => setCurrentStep(1)}
                   style={{
@@ -765,7 +815,7 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
             </div>
           )}
 
-          {/* Step 4: Cost Review & Override - WITH EXTENDED COSTS */}
+          {/* Step 4: Cost Review & Override - WITH EXTENDED COSTS INCLUDING DRYING */}
           {currentStep === 4 && costs && (
             <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
               <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>
@@ -835,11 +885,11 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
                 </tbody>
               </table>
 
-              {/* NEW - Extended Costs Table */}
+              {/* NEW - Extended Costs Table (Including Drying Costs) */}
               {costs.extendedCosts.length > 0 && (
                 <>
                   <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#495057' }}>
-                    Extended Cost Elements
+                    Extended Cost Elements (Including Drying Stage)
                   </h4>
                   <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', marginBottom: '20px' }}>
                     <thead>
@@ -853,10 +903,11 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
                     </thead>
                     <tbody>
                       {costs.extendedCosts.map((cost, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} style={{ backgroundColor: cost.element_name.includes('Drying') ? '#f0f8ff' : 'white' }}>
                           <td style={{ padding: '10px' }}>
                             {cost.element_name}
                             {cost.is_optional && <span style={{ color: '#6c757d', fontSize: '12px' }}> (Optional)</span>}
+                            {cost.element_name.includes('Drying') && <span style={{ color: '#007bff', fontSize: '12px' }}> 🔵 Step 2</span>}
                           </td>
                           <td style={{ padding: '10px', textAlign: 'center' }}>
                             <span style={{
@@ -867,6 +918,7 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
                                 cost.category === 'Labor' ? '#d4edda' :
                                 cost.category === 'Utilities' ? '#cce5ff' :
                                 cost.category === 'Consumables' ? '#fff3cd' :
+                                cost.category === 'Transport' ? '#f8d7da' :
                                 '#e9ecef',
                               color: '#495057'
                             }}>
@@ -947,6 +999,21 @@ ${timeTrackingData ? `Time Tracked: ${timeTrackingData.rounded_hours} hours` : '
                     <li>Electricity: ₹{timeTrackingData.costs.electricity.toFixed(2)}</li>
                     <li>Total Time Costs: ₹{timeTrackingData.costs.total.toFixed(2)}</li>
                   </ul>
+                </div>
+              )}
+
+              {/* Drying Costs Summary */}
+              {dryingCosts.length > 0 && (
+                <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#d4edda', borderRadius: '5px' }}>
+                  <strong>🌾 Drying Stage Costs (from Step 2):</strong>
+                  <ul style={{ marginTop: '10px', marginBottom: 0 }}>
+                    {dryingCosts.map((cost, idx) => (
+                      <li key={idx}>{cost.element_name}: ₹{cost.total_cost.toFixed(2)}</li>
+                    ))}
+                  </ul>
+                  <div style={{ marginTop: '10px', fontWeight: 'bold', borderTop: '1px solid #c3e6cb', paddingTop: '10px' }}>
+                    Total Drying Costs: ₹{dryingCosts.reduce((sum, c) => sum + c.total_cost, 0).toFixed(2)}
+                  </div>
                 </div>
               )}
               
