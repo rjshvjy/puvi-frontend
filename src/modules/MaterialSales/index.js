@@ -1,9 +1,11 @@
 // File Path: puvi-frontend/src/modules/MaterialSales/index.js
-// Material Sales Module with Packing Cost Integration
-// Added: Sacks/Bags packing cost field with override capability
+// Material Sales Module with Packing Cost Integration - Updated UI
+// Session 3: UI standardized with CostElementRow component
+// IMPORTANT: FIFO logic unchanged and working perfectly
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import CostElementRow from '../../components/CostManagement/CostElementRow';
 import './MaterialSales.css';
 
 const MaterialSales = () => {
@@ -19,7 +21,7 @@ const MaterialSales = () => {
   const [oilTypes, setOilTypes] = useState([]);
   const [summary, setSummary] = useState(null);
   
-  // NEW - Cost elements state for packing cost
+  // Cost elements state for packing cost
   const [packingCostElement, setPackingCostElement] = useState({
     element_id: null,
     element_name: 'Sacks/Bags',
@@ -27,7 +29,7 @@ const MaterialSales = () => {
     unit_type: 'Per Kg'
   });
   
-  // Sale form data - UPDATED with packing cost fields
+  // Sale form data with packing cost fields
   const [saleData, setSaleData] = useState({
     byproduct_type: 'oil_cake',
     oil_type: '',
@@ -37,9 +39,9 @@ const MaterialSales = () => {
     quantity_sold: '',
     sale_rate: '',
     transport_cost: '0',
-    packing_cost_enabled: false, // NEW
-    packing_cost_rate: '', // NEW
-    packing_cost_total: '0', // NEW
+    packing_cost_enabled: false,
+    packing_cost_rate: '',
+    packing_cost_total: '0',
     notes: ''
   });
   
@@ -51,10 +53,10 @@ const MaterialSales = () => {
     fetchByproductTypes();
     fetchInventory('oil_cake');
     fetchSalesHistory();
-    fetchPackingCostElement(); // NEW - Fetch packing cost element
+    fetchPackingCostElement();
   }, []);
   
-  // NEW - Fetch packing cost element from master
+  // Fetch packing cost element from master
   const fetchPackingCostElement = async () => {
     try {
       const response = await api.costManagement.getCostElementsByStage('sales');
@@ -96,7 +98,7 @@ const MaterialSales = () => {
     }
   };
   
-  // Fetch available inventory
+  // Fetch available inventory - UNCHANGED FIFO LOGIC
   const fetchInventory = async (type, oilType = null) => {
     try {
       const params = { type };
@@ -138,7 +140,7 @@ const MaterialSales = () => {
     }
   };
   
-  // Handle form changes - UPDATED with packing cost logic
+  // Handle form changes with packing cost logic
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     
@@ -198,7 +200,38 @@ const MaterialSales = () => {
     }
   };
   
-  // Calculate FIFO allocation preview
+  // Handle packing cost override changes from CostElementRow
+  const handlePackingCostToggle = (enabled) => {
+    setSaleData(prev => {
+      const updated = { ...prev, packing_cost_enabled: enabled };
+      
+      if (!enabled) {
+        updated.packing_cost_rate = '';
+        updated.packing_cost_total = '0';
+      } else {
+        const quantity = parseFloat(prev.quantity_sold) || 0;
+        const rate = packingCostElement.default_rate;
+        updated.packing_cost_total = (quantity * rate).toFixed(2);
+      }
+      
+      return updated;
+    });
+  };
+  
+  const handlePackingRateChange = (rate) => {
+    setSaleData(prev => {
+      const quantity = parseFloat(prev.quantity_sold) || 0;
+      const effectiveRate = parseFloat(rate) || packingCostElement.default_rate;
+      
+      return {
+        ...prev,
+        packing_cost_rate: rate,
+        packing_cost_total: (quantity * effectiveRate).toFixed(2)
+      };
+    });
+  };
+  
+  // Calculate FIFO allocation preview - CRITICAL: DO NOT MODIFY
   const calculateFifoPreview = (quantityToSell) => {
     const preview = [];
     let remaining = quantityToSell;
@@ -227,7 +260,7 @@ const MaterialSales = () => {
     }
   };
   
-  // Calculate cost impact - UPDATED with packing cost
+  // Calculate cost impact with packing cost - CRITICAL: RETROACTIVE LOGIC PRESERVED
   const calculateCostImpact = () => {
     if (!saleData.sale_rate || fifoPreview.length === 0) return null;
     
@@ -253,7 +286,7 @@ const MaterialSales = () => {
     };
   };
   
-  // Handle form submission - UPDATED with packing cost
+  // Handle form submission with packing cost
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -281,7 +314,7 @@ const MaterialSales = () => {
       
       const response = await api.sales.addMaterialSale(submissionData);
       
-      // NEW - Log packing cost override if different from master
+      // Log packing cost override if different from master
       if (response.success && saleData.packing_cost_enabled && saleData.packing_cost_rate) {
         const usedRate = parseFloat(saleData.packing_cost_rate);
         if (usedRate !== packingCostElement.default_rate) {
@@ -364,7 +397,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
   return (
     <div className="material-sales-container">
       <div className="module-header">
-        <h2>Material Sales Module</h2>
+        <h2 className="module-title">Material Sales Module</h2>
         <p className="module-subtitle">By-product sales with cost reconciliation</p>
       </div>
       
@@ -408,11 +441,11 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
           <div className="sale-form-grid">
             {/* Left: Form */}
             <div className="sale-form-section">
-              <h3>Sale Details</h3>
+              <h3 className="section-title">Sale Details</h3>
               <form onSubmit={handleSubmit}>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>By-Product Type *</label>
+                    <label className="form-label">By-Product Type *</label>
                     <select
                       name="byproduct_type"
                       value={saleData.byproduct_type}
@@ -425,7 +458,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   </div>
                   
                   <div className="form-group">
-                    <label>Oil Type (Filter)</label>
+                    <label className="form-label">Oil Type (Filter)</label>
                     <select
                       name="oil_type"
                       value={saleData.oil_type}
@@ -442,7 +475,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Sale Date *</label>
+                    <label className="form-label">Sale Date *</label>
                     <input
                       type="date"
                       name="sale_date"
@@ -454,7 +487,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   </div>
                   
                   <div className="form-group">
-                    <label>Invoice Number</label>
+                    <label className="form-label">Invoice Number</label>
                     <input
                       type="text"
                       name="invoice_number"
@@ -467,7 +500,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                 </div>
                 
                 <div className="form-group">
-                  <label>Buyer Name *</label>
+                  <label className="form-label">Buyer Name *</label>
                   <input
                     type="text"
                     name="buyer_name"
@@ -481,7 +514,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Quantity (kg) *</label>
+                    <label className="form-label">Quantity (kg) *</label>
                     <input
                       type="number"
                       name="quantity_sold"
@@ -496,7 +529,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   </div>
                   
                   <div className="form-group">
-                    <label>Sale Rate (₹/kg) *</label>
+                    <label className="form-label">Sale Rate (₹/kg) *</label>
                     <input
                       type="number"
                       name="sale_rate"
@@ -512,7 +545,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                 </div>
                 
                 <div className="form-group">
-                  <label>Transport Cost (₹)</label>
+                  <label className="form-label">Transport Cost (₹)</label>
                   <input
                     type="number"
                     name="transport_cost"
@@ -524,92 +557,36 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   />
                 </div>
                 
-                {/* NEW - Packing Cost Section */}
-                <div style={{ 
-                  marginTop: '20px', 
-                  padding: '15px', 
-                  backgroundColor: '#f8f9fa', 
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                    <input
-                      type="checkbox"
-                      id="packingCostCheck"
-                      name="packing_cost_enabled"
-                      checked={saleData.packing_cost_enabled}
-                      onChange={handleInputChange}
-                      style={{ marginRight: '10px' }}
-                    />
-                    <label htmlFor="packingCostCheck" style={{ 
-                      margin: 0, 
-                      fontWeight: '600', 
-                      fontSize: '16px',
-                      cursor: 'pointer' 
-                    }}>
-                      📦 Sacks/Bags Packing Cost
-                    </label>
-                  </div>
+                {/* Packing Cost Section - Updated with CostElementRow */}
+                <div className="cost-element-section">
+                  <h4 className="subsection-title">Additional Costs</h4>
+                  <CostElementRow
+                    elementName="Sacks/Bags Packing Cost"
+                    masterRate={packingCostElement.default_rate}
+                    unitType="Per Kg"
+                    quantity={parseFloat(saleData.quantity_sold) || 0}
+                    enabled={saleData.packing_cost_enabled}
+                    category="Material"
+                    overrideRate={saleData.packing_cost_rate}
+                    onToggle={handlePackingCostToggle}
+                    onOverrideChange={handlePackingRateChange}
+                    icon="📦"
+                    helpText="Cost for packing materials (sacks/bags) used for by-product sales"
+                    variant="default"
+                  />
                   
                   {saleData.packing_cost_enabled && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
-                      <div>
-                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate (₹/kg)</label>
-                        <div style={{ fontSize: '16px', fontWeight: '500', padding: '8px', backgroundColor: 'white', borderRadius: '4px' }}>
-                          ₹{packingCostElement.default_rate}
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate (₹/kg)</label>
-                        <input
-                          type="number"
-                          name="packing_cost_rate"
-                          placeholder={packingCostElement.default_rate.toString()}
-                          value={saleData.packing_cost_rate}
-                          onChange={handleInputChange}
-                          step="0.01"
-                          style={{
-                            width: '100%',
-                            padding: '8px',
-                            border: '1px solid #ced4da',
-                            borderRadius: '4px',
-                            fontWeight: saleData.packing_cost_rate ? 'bold' : 'normal',
-                            backgroundColor: 'white'
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Packing Cost</label>
-                        <div style={{ 
-                          fontSize: '16px', 
-                          fontWeight: 'bold', 
-                          color: '#dc3545',
-                          padding: '8px',
-                          backgroundColor: 'white',
-                          borderRadius: '4px',
-                          border: '1px solid #dee2e6'
-                        }}>
-                          ₹{saleData.packing_cost_total}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {saleData.packing_cost_enabled && (
-                    <div style={{ 
-                      marginTop: '10px', 
-                      padding: '8px', 
-                      backgroundColor: '#fff3cd', 
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}>
-                      <strong>⚠️ Note:</strong> Packing cost will be deducted from sale revenue and will increase the net oil cost retroactively.
+                    <div className="cost-warning-note">
+                      <span className="warning-icon">⚠️</span>
+                      <span className="warning-text">
+                        Packing cost will be deducted from sale revenue and will increase the net oil cost retroactively.
+                      </span>
                     </div>
                   )}
                 </div>
                 
                 <div className="form-group">
-                  <label>Notes</label>
+                  <label className="form-label">Notes</label>
                   <textarea
                     name="notes"
                     value={saleData.notes}
@@ -620,14 +597,14 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   />
                 </div>
                 
-                {/* Cost Impact Summary - UPDATED with packing cost */}
+                {/* Cost Impact Summary with packing cost */}
                 {costImpact && (
                   <div className={`cost-impact-card ${costImpact.isPositive ? 'positive' : 'negative'}`}>
                     <h4>Cost Impact Preview</h4>
                     {saleData.packing_cost_enabled && (
-                      <div className="impact-row" style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px', marginBottom: '8px' }}>
+                      <div className="impact-row highlight">
                         <span>Packing Cost Impact:</span>
-                        <span className="impact-value" style={{ color: '#dc3545' }}>
+                        <span className="impact-value negative">
                           +₹{costImpact.packingCostImpact.toFixed(2)}
                         </span>
                       </div>
@@ -639,7 +616,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                         ₹{(costImpact.totalAdjustment - costImpact.packingCostImpact).toFixed(2)}
                       </span>
                     </div>
-                    <div className="impact-row" style={{ fontWeight: 'bold', borderTop: '1px solid #e0e0e0', paddingTop: '8px', marginTop: '8px' }}>
+                    <div className="impact-row total">
                       <span>Total Oil Cost Impact:</span>
                       <span className="impact-value">
                         {costImpact.isPositive ? '↓' : '↑'} ₹{Math.abs(costImpact.totalAdjustment).toFixed(2)}
@@ -651,13 +628,13 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                         {costImpact.isPositive ? '-' : '+'} ₹{Math.abs(costImpact.perKgImpact).toFixed(2)}
                       </span>
                     </div>
-                    <div className="impact-row" style={{ marginTop: '10px', color: '#28a745' }}>
+                    <div className="impact-row success-row">
                       <span>Net Revenue:</span>
                       <span className="impact-value">
                         ₹{costImpact.netRevenue.toFixed(2)}
                       </span>
                     </div>
-                    <small style={{ display: 'block', marginTop: '10px', fontStyle: 'italic' }}>
+                    <small className="impact-note">
                       {costImpact.isPositive 
                         ? 'Net positive impact - Oil cost will decrease'
                         : 'Net negative impact - Oil cost will increase'}
@@ -675,9 +652,9 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
               </form>
             </div>
             
-            {/* Right: Inventory & FIFO Preview */}
+            {/* Right: Inventory & FIFO Preview - UNCHANGED */}
             <div className="inventory-preview-section">
-              <h3>Available Inventory</h3>
+              <h3 className="section-title">Available Inventory</h3>
               {summary && (
                 <div className="inventory-summary">
                   <div className="summary-stat">
@@ -714,7 +691,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                 )}
               </div>
               
-              {/* FIFO Allocation Preview */}
+              {/* FIFO Allocation Preview - CRITICAL: UNCHANGED */}
               {fifoPreview.length > 0 && (
                 <div className="fifo-preview">
                   <h4>FIFO Allocation Preview</h4>
@@ -748,7 +725,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
       {/* Sales History Tab */}
       {activeTab === 'history' && (
         <div className="tab-content">
-          <h3>Sales History</h3>
+          <h3 className="section-title">Sales History</h3>
           <div className="history-table-container">
             <table className="history-table">
               <thead>
@@ -799,7 +776,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
       {/* Cost Reconciliation Tab */}
       {activeTab === 'reconciliation' && (
         <div className="tab-content">
-          <h3>Cost Reconciliation Report</h3>
+          <h3 className="section-title">Cost Reconciliation Report</h3>
           <div className="reconciliation-grid">
             {reconciliationData.map(batch => (
               <div key={batch.batch_id} className="reconciliation-card">
