@@ -36,7 +36,7 @@ const Purchase = () => {
     Nos: { percentage: 20, items: [] }
   });
   
-  // Cost Management States
+  // Cost Management States - Only Seed Unloading as additional cost
   const [costElements, setCostElements] = useState({
     seedUnloading: { 
       element_id: null, 
@@ -44,19 +44,11 @@ const Purchase = () => {
       default_rate: 0.12, 
       unit_type: 'Per Bag',
       override_rate: null 
-    },
-    transportInward: { 
-      element_id: null, 
-      element_name: 'Transport - Seed Inward', 
-      default_rate: 1.0, 
-      unit_type: 'Per Kg',
-      override_rate: null 
     }
   });
   
   const [costOverrides, setCostOverrides] = useState({
-    seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 },
-    transportInward: { enabled: false, rate: '', quantity: 0, total: 0 }
+    seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 }
   });
   
   const [message, setMessage] = useState('');
@@ -73,7 +65,7 @@ const Purchase = () => {
     calculateAdditionalCosts();
   }, [items, invoiceData.transport_cost, invoiceData.handling_charges, uomGroups]);
 
-  // Fetch cost elements from master
+  // Fetch cost elements from master - Only Seed Unloading
   const fetchCostElementsMaster = async () => {
     try {
       const response = await api.costManagement.getCostElementsByStage('purchase');
@@ -83,11 +75,6 @@ const Purchase = () => {
         // Find seed unloading element
         const seedUnloadingElement = elements.find(e => 
           e.element_name === 'Seed Unloading' || e.element_name.includes('Unloading')
-        );
-        
-        // Find transport inward element
-        const transportElement = elements.find(e => 
-          e.element_name === 'Transport - Seed Inward' || (e.element_name.includes('Transport') && e.element_name.includes('Inward'))
         );
         
         if (seedUnloadingElement) {
@@ -101,18 +88,6 @@ const Purchase = () => {
             }
           }));
         }
-        
-        if (transportElement) {
-          setCostElements(prev => ({
-            ...prev,
-            transportInward: {
-              ...prev.transportInward,
-              element_id: transportElement.element_id,
-              default_rate: transportElement.default_rate,
-              unit_type: transportElement.unit_type
-            }
-          }));
-        }
       }
     } catch (error) {
       console.error('Error fetching cost elements:', error);
@@ -120,7 +95,7 @@ const Purchase = () => {
     }
   };
 
-  // Calculate additional costs based on quantities
+  // Calculate additional costs based on quantities - Only Seed Unloading
   const calculateAdditionalCosts = () => {
     // Calculate total quantity for seed items (kg based)
     let totalKgQuantity = 0;
@@ -139,36 +114,33 @@ const Purchase = () => {
       }
     });
     
-    // Update cost overrides with calculated quantities
+    // Update cost overrides with calculated quantities - Only Seed Unloading
     setCostOverrides(prev => ({
       seedUnloading: {
         ...prev.seedUnloading,
         quantity: Math.ceil(totalBags), // Round up bags
         total: Math.ceil(totalBags) * (parseFloat(prev.seedUnloading.rate) || costElements.seedUnloading.default_rate)
-      },
-      transportInward: {
-        ...prev.transportInward,
-        quantity: totalKgQuantity,
-        total: totalKgQuantity * (parseFloat(prev.transportInward.rate) || costElements.transportInward.default_rate)
       }
     }));
   };
 
-  // Handle cost override changes
+  // Handle cost override changes - Only for Seed Unloading
   const handleCostOverrideChange = (costType, field, value) => {
+    if (costType !== 'seedUnloading') return; // Only handle seed unloading
+    
     setCostOverrides(prev => {
       const updated = { ...prev };
       
       if (field === 'enabled') {
-        updated[costType].enabled = value;
+        updated.seedUnloading.enabled = value;
         if (!value) {
-          updated[costType].rate = '';
+          updated.seedUnloading.rate = '';
         }
       } else if (field === 'rate') {
-        updated[costType].rate = value;
-        const quantity = updated[costType].quantity;
-        const rate = parseFloat(value) || costElements[costType].default_rate;
-        updated[costType].total = quantity * rate;
+        updated.seedUnloading.rate = value;
+        const quantity = updated.seedUnloading.quantity;
+        const rate = parseFloat(value) || costElements.seedUnloading.default_rate;
+        updated.seedUnloading.total = quantity * rate;
       }
       
       return updated;
@@ -340,10 +312,9 @@ const Purchase = () => {
     const transportCost = parseFloat(invoiceData.transport_cost) || 0;
     const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
     
-    // Include additional cost elements
+    // Only include Seed Unloading as additional cost
     const seedUnloadingCost = costOverrides.seedUnloading.enabled ? costOverrides.seedUnloading.total : 0;
-    const transportInwardCost = costOverrides.transportInward.enabled ? costOverrides.transportInward.total : 0;
-    const additionalCosts = seedUnloadingCost + transportInwardCost;
+    const additionalCosts = seedUnloadingCost;
     
     const grandTotal = subtotal + totalGst + transportCost + handlingCharges + additionalCosts;
 
@@ -354,7 +325,6 @@ const Purchase = () => {
       handlingCharges: handlingCharges.toFixed(2),
       additionalCosts: additionalCosts.toFixed(2),
       seedUnloadingCost: seedUnloadingCost.toFixed(2),
-      transportInwardCost: transportInwardCost.toFixed(2),
       grandTotal: grandTotal.toFixed(2)
     };
   };
@@ -381,7 +351,7 @@ const Purchase = () => {
     setMessage('');
 
     try {
-      // Prepare cost overrides for submission
+      // Prepare cost overrides for submission - Only Seed Unloading
       const costOverrideData = [];
       
       if (costOverrides.seedUnloading.enabled) {
@@ -392,17 +362,6 @@ const Purchase = () => {
           master_rate: costElements.seedUnloading.default_rate,
           override_rate: parseFloat(costOverrides.seedUnloading.rate) || costElements.seedUnloading.default_rate,
           total_cost: costOverrides.seedUnloading.total
-        });
-      }
-      
-      if (costOverrides.transportInward.enabled) {
-        costOverrideData.push({
-          element_id: costElements.transportInward.element_id,
-          element_name: costElements.transportInward.element_name,
-          quantity: costOverrides.transportInward.quantity,
-          master_rate: costElements.transportInward.default_rate,
-          override_rate: parseFloat(costOverrides.transportInward.rate) || costElements.transportInward.default_rate,
-          total_cost: costOverrides.transportInward.total
         });
       }
 
@@ -473,10 +432,9 @@ Items: ${response.items_count}`);
       }]);
       setSelectedSupplier('');
       
-      // Reset cost overrides
+      // Reset cost overrides - Only Seed Unloading
       setCostOverrides({
-        seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 },
-        transportInward: { enabled: false, rate: '', quantity: 0, total: 0 }
+        seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 }
       });
       
     } catch (error) {
@@ -581,20 +539,20 @@ Items: ${response.items_count}`);
             </div>
 
             <div className="items-table-container">
-              <table className="items-table">
+              <table className="items-table" style={{ minWidth: '1400px', tableLayout: 'auto' }}>
                 <thead>
                   <tr>
-                    <th>Material</th>
-                    <th>Quantity</th>
-                    <th>Unit</th>
-                    <th>Rate</th>
-                    <th>Amount</th>
-                    <th>GST %</th>
-                    <th>GST Amount</th>
-                    <th>Transport</th>
-                    <th>Handling</th>
-                    <th>Total</th>
-                    <th></th>
+                    <th style={{ minWidth: '250px' }}>Material</th>
+                    <th style={{ minWidth: '100px' }}>Quantity</th>
+                    <th style={{ minWidth: '60px' }}>Unit</th>
+                    <th style={{ minWidth: '100px' }}>Rate</th>
+                    <th style={{ minWidth: '120px' }}>Amount</th>
+                    <th style={{ minWidth: '80px' }}>GST %</th>
+                    <th style={{ minWidth: '120px' }}>GST Amt</th>
+                    <th style={{ minWidth: '100px' }}>Transport</th>
+                    <th style={{ minWidth: '100px' }}>Handling</th>
+                    <th style={{ minWidth: '120px' }}>Total</th>
+                    <th style={{ minWidth: '50px' }} aria-label="Actions"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -611,11 +569,13 @@ Items: ${response.items_count}`);
                             value={item.material_id}
                             onChange={(e) => handleItemChange(index, 'material_id', e.target.value)}
                             disabled={!selectedSupplier}
-                            className="form-control"
+                            className="form-control material-select"
+                            style={{ minWidth: '240px' }}
+                            title={materials.find(m => m.material_id === parseInt(item.material_id))?.material_name || 'Select Material'}
                           >
                             <option value="">Select Material</option>
                             {materials.map(material => (
-                              <option key={material.material_id} value={material.material_id}>
+                              <option key={material.material_id} value={material.material_id} title={material.material_name}>
                                 {material.material_name}
                                 {material.short_code && ` (${material.short_code})`}
                               </option>
@@ -629,9 +589,10 @@ Items: ${response.items_count}`);
                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
                             step="0.01"
                             className="form-control text-right"
+                            placeholder="0.00"
                           />
                         </td>
-                        <td className="unit-cell">{getMaterialUnit(item.material_id)}</td>
+                        <td className="unit-cell">{getMaterialUnit(item.material_id) || '-'}</td>
                         <td>
                           <input
                             type="number"
@@ -639,6 +600,7 @@ Items: ${response.items_count}`);
                             onChange={(e) => handleItemChange(index, 'rate', e.target.value)}
                             step="0.01"
                             className="form-control text-right"
+                            placeholder="0.00"
                           />
                         </td>
                         <td className="amount-cell">₹{amount.toFixed(2)}</td>
@@ -648,6 +610,7 @@ Items: ${response.items_count}`);
                             value={item.gst_rate}
                             readOnly
                             className="form-control readonly text-center"
+                            tabIndex="-1"
                           />
                         </td>
                         <td className="amount-cell">₹{gstAmount.toFixed(2)}</td>
@@ -658,6 +621,7 @@ Items: ${response.items_count}`);
                             onChange={(e) => handleItemChange(index, 'transport_charges', e.target.value)}
                             step="0.01"
                             className="form-control text-right"
+                            placeholder="0.00"
                           />
                         </td>
                         <td>
@@ -667,15 +631,18 @@ Items: ${response.items_count}`);
                             onChange={(e) => handleItemChange(index, 'handling_charges', e.target.value)}
                             step="0.01"
                             className="form-control text-right"
+                            placeholder="0.00"
                           />
                         </td>
                         <td className="total-cell">₹{total.toFixed(2)}</td>
-                        <td>
+                        <td className="action-cell">
                           {items.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeItem(index)}
                               className="btn-remove"
+                              aria-label="Remove item"
+                              title="Remove item"
                             >
                               ×
                             </button>
@@ -775,7 +742,7 @@ Items: ${response.items_count}`);
             )}
           </div>
 
-          {/* Additional Cost Elements Section - Using CostElementRow */}
+          {/* Additional Cost Elements Section - Only Seed Unloading */}
           <div className="form-card">
             <h3 className="section-title">Additional Cost Elements</h3>
             
@@ -794,28 +761,14 @@ Items: ${response.items_count}`);
                 helpText="Cost for unloading seed bags from transport vehicles"
                 variant="default"
               />
-              
-              <CostElementRow
-                elementName="Transport - Seed Inward"
-                masterRate={costElements.transportInward.default_rate}
-                unitType="Per Kg"
-                quantity={costOverrides.transportInward.quantity}
-                enabled={costOverrides.transportInward.enabled}
-                category="Transport"
-                overrideRate={costOverrides.transportInward.rate}
-                onToggle={(enabled) => handleCostOverrideChange('transportInward', 'enabled', enabled)}
-                onOverrideChange={(rate) => handleCostOverrideChange('transportInward', 'rate', rate)}
-                icon="🚚"
-                helpText="Transportation cost for bringing seeds to the facility"
-                variant="default"
-              />
             </div>
             
             <div className="cost-info-note">
               <span className="info-icon">ℹ️</span>
               <span className="info-text">
-                These additional costs will be added to the landed cost of materials. 
-                Override rates if market rates differ from master rates.
+                Seed unloading cost will be added to the landed cost of materials. 
+                Override rate if market rate differs from master rate.
+                Transport costs are already captured in the Transport & Handling section above.
               </span>
             </div>
           </div>
@@ -844,12 +797,6 @@ Items: ${response.items_count}`);
                 <div className="summary-row">
                   <span className="summary-label">Seed Unloading:</span>
                   <span className="summary-value">₹{totals.seedUnloadingCost}</span>
-                </div>
-              )}
-              {costOverrides.transportInward.enabled && (
-                <div className="summary-row">
-                  <span className="summary-label">Transport - Seed Inward:</span>
-                  <span className="summary-value">₹{totals.transportInwardCost}</span>
                 </div>
               )}
               <div className="summary-row total">
