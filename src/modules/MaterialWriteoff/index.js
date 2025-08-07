@@ -33,7 +33,7 @@ const MaterialWriteoff = () => {
     try {
       const response = await api.writeoff.getInventoryForWriteoff();
       if (response.success) {
-        setInventoryItems(response.inventory_items);
+        setInventoryItems(response.inventory_items || []);
       }
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -44,9 +44,15 @@ const MaterialWriteoff = () => {
   const fetchWriteoffReasons = async () => {
     try {
       const response = await api.writeoff.getWriteoffReasons();
-      setWriteoffReasons(response);
+      // FIX: Extract the reasons array from the response object
+      if (response.success) {
+        setWriteoffReasons(response.reasons || []);
+      } else {
+        setWriteoffReasons([]);
+      }
     } catch (error) {
       console.error('Error fetching writeoff reasons:', error);
+      setWriteoffReasons([]);
     }
   };
 
@@ -54,11 +60,12 @@ const MaterialWriteoff = () => {
     try {
       const response = await api.writeoff.getWriteoffHistory();
       if (response.success) {
-        setWriteoffHistory(response.writeoffs);
-        setSummary(response.summary);
+        setWriteoffHistory(response.writeoffs || []);
+        setSummary(response.summary || null);
       }
     } catch (error) {
       console.error('Error fetching writeoff history:', error);
+      setWriteoffHistory([]);
     }
   };
 
@@ -163,11 +170,15 @@ const MaterialWriteoff = () => {
   const values = calculateWriteoffValue();
 
   // Group reasons by category for better display
-  const reasonsByCategory = writeoffReasons.reduce((acc, reason) => {
-    if (!acc[reason.category]) acc[reason.category] = [];
-    acc[reason.category].push(reason);
-    return acc;
-  }, {});
+  // Add safety check for array
+  const reasonsByCategory = Array.isArray(writeoffReasons) 
+    ? writeoffReasons.reduce((acc, reason) => {
+        const category = reason.category || 'Other';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(reason);
+        return acc;
+      }, {})
+    : {};
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
@@ -302,7 +313,7 @@ const MaterialWriteoff = () => {
                     <option value="">Select Reason</option>
                     {Object.entries(reasonsByCategory).map(([category, reasons]) => (
                       <optgroup key={category} label={category}>
-                        {reasons.map(reason => (
+                        {Array.isArray(reasons) && reasons.map(reason => (
                           <option key={reason.reason_code} value={reason.reason_code}>
                             {reason.reason_description}
                           </option>
@@ -496,7 +507,7 @@ const MaterialWriteoff = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {writeoffHistory.map((writeoff) => (
+                  {Array.isArray(writeoffHistory) && writeoffHistory.map((writeoff) => (
                     <tr key={writeoff.writeoff_id} style={{ borderBottom: '1px solid #dee2e6' }}>
                       <td style={{ padding: '12px' }}>{writeoff.writeoff_date_display}</td>
                       <td style={{ padding: '12px' }}>{writeoff.material_name}</td>
