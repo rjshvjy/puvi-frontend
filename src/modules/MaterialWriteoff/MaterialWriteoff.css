@@ -1,6 +1,9 @@
-# File: `puvi-frontend/src/modules/MaterialWriteoff/MaterialWriteoff.css`
+/**
+ * MaterialWriteoff Styles v2.0.0
+ * Last Modified: August 8, 2025
+ * Features: Filter controls, responsive design, print styles
+ */
 
-```css
 /* MaterialWriteoff module styles */
 
 /* Container and Layout */
@@ -471,4 +474,5 @@
     page-break-after: avoid;
   }
 }
-```
+
+/* End of MaterialWriteoff Styles v2.0.0 - August 8, 2025 */
