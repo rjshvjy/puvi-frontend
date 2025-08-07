@@ -1,4 +1,7 @@
-// src/modules/Purchase/index.js
+// File Path: puvi-frontend/src/modules/Purchase/index.js
+// Purchase Module with Cost Management Integration
+// Added: Seed Unloading and Transport-Seed Inward cost elements with override capability
+
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import './Purchase.css';
@@ -32,17 +35,144 @@ const Purchase = () => {
     Nos: { percentage: 20, items: [] }
   });
   
+  // NEW - Cost Management States
+  const [costElements, setCostElements] = useState({
+    seedUnloading: { 
+      element_id: null, 
+      element_name: 'Seed Unloading', 
+      default_rate: 0.12, 
+      unit_type: 'Per Bag',
+      override_rate: null 
+    },
+    transportInward: { 
+      element_id: null, 
+      element_name: 'Transport - Seed Inward', 
+      default_rate: 1.0, 
+      unit_type: 'Per Kg',
+      override_rate: null 
+    }
+  });
+  
+  const [costOverrides, setCostOverrides] = useState({
+    seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 },
+    transportInward: { enabled: false, rate: '', quantity: 0, total: 0 }
+  });
+  
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchSuppliers();
+    fetchCostElementsMaster(); // NEW - Fetch cost elements on load
   }, []);
 
   useEffect(() => {
     // Recalculate transport/handling allocation when items or percentages change
     allocateCharges();
+    calculateAdditionalCosts(); // NEW - Calculate additional costs
   }, [items, invoiceData.transport_cost, invoiceData.handling_charges, uomGroups]);
+
+  // NEW - Fetch cost elements from master
+  const fetchCostElementsMaster = async () => {
+    try {
+      const response = await api.costManagement.getCostElementsByStage('purchase');
+      if (response.success) {
+        const elements = response.cost_elements;
+        
+        // Find seed unloading element
+        const seedUnloadingElement = elements.find(e => 
+          e.element_name === 'Seed Unloading' || e.element_name.includes('Unloading')
+        );
+        
+        // Find transport inward element
+        const transportElement = elements.find(e => 
+          e.element_name === 'Transport - Seed Inward' || e.element_name.includes('Transport') && e.element_name.includes('Inward')
+        );
+        
+        if (seedUnloadingElement) {
+          setCostElements(prev => ({
+            ...prev,
+            seedUnloading: {
+              ...prev.seedUnloading,
+              element_id: seedUnloadingElement.element_id,
+              default_rate: seedUnloadingElement.default_rate,
+              unit_type: seedUnloadingElement.unit_type
+            }
+          }));
+        }
+        
+        if (transportElement) {
+          setCostElements(prev => ({
+            ...prev,
+            transportInward: {
+              ...prev.transportInward,
+              element_id: transportElement.element_id,
+              default_rate: transportElement.default_rate,
+              unit_type: transportElement.unit_type
+            }
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching cost elements:', error);
+      // Continue with default rates if API fails
+    }
+  };
+
+  // NEW - Calculate additional costs based on quantities
+  const calculateAdditionalCosts = () => {
+    // Calculate total quantity for seed items (kg based)
+    let totalKgQuantity = 0;
+    let totalBags = 0;
+    
+    items.forEach(item => {
+      if (item.material_id && item.quantity) {
+        const unit = getMaterialUnit(item.material_id);
+        const quantity = parseFloat(item.quantity) || 0;
+        
+        if (unit === 'kg') {
+          totalKgQuantity += quantity;
+          // Assuming 50kg per bag for bag calculation
+          totalBags += quantity / 50;
+        }
+      }
+    });
+    
+    // Update cost overrides with calculated quantities
+    setCostOverrides(prev => ({
+      seedUnloading: {
+        ...prev.seedUnloading,
+        quantity: Math.ceil(totalBags), // Round up bags
+        total: Math.ceil(totalBags) * (parseFloat(prev.seedUnloading.rate) || costElements.seedUnloading.default_rate)
+      },
+      transportInward: {
+        ...prev.transportInward,
+        quantity: totalKgQuantity,
+        total: totalKgQuantity * (parseFloat(prev.transportInward.rate) || costElements.transportInward.default_rate)
+      }
+    }));
+  };
+
+  // NEW - Handle cost override changes
+  const handleCostOverrideChange = (costType, field, value) => {
+    setCostOverrides(prev => {
+      const updated = { ...prev };
+      
+      if (field === 'enabled') {
+        updated[costType].enabled = value;
+        if (!value) {
+          updated[costType].rate = '';
+        }
+      } else if (field === 'rate') {
+        updated[costType].rate = value;
+        const quantity = updated[costType].quantity;
+        const rate = parseFloat(value) || costElements[costType].default_rate;
+        updated[costType].total = quantity * rate;
+      }
+      
+      return updated;
+    });
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -208,13 +338,22 @@ const Purchase = () => {
 
     const transportCost = parseFloat(invoiceData.transport_cost) || 0;
     const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
-    const grandTotal = subtotal + totalGst + transportCost + handlingCharges;
+    
+    // NEW - Include additional cost elements
+    const seedUnloadingCost = costOverrides.seedUnloading.enabled ? costOverrides.seedUnloading.total : 0;
+    const transportInwardCost = costOverrides.transportInward.enabled ? costOverrides.transportInward.total : 0;
+    const additionalCosts = seedUnloadingCost + transportInwardCost;
+    
+    const grandTotal = subtotal + totalGst + transportCost + handlingCharges + additionalCosts;
 
     return {
       subtotal: subtotal.toFixed(2),
       totalGst: totalGst.toFixed(2),
       transportCost: transportCost.toFixed(2),
       handlingCharges: handlingCharges.toFixed(2),
+      additionalCosts: additionalCosts.toFixed(2), // NEW
+      seedUnloadingCost: seedUnloadingCost.toFixed(2), // NEW
+      transportInwardCost: transportInwardCost.toFixed(2), // NEW
       grandTotal: grandTotal.toFixed(2)
     };
   };
@@ -241,6 +380,31 @@ const Purchase = () => {
     setMessage('');
 
     try {
+      // NEW - Prepare cost overrides for submission
+      const costOverrideData = [];
+      
+      if (costOverrides.seedUnloading.enabled) {
+        costOverrideData.push({
+          element_id: costElements.seedUnloading.element_id,
+          element_name: costElements.seedUnloading.element_name,
+          quantity: costOverrides.seedUnloading.quantity,
+          master_rate: costElements.seedUnloading.default_rate,
+          override_rate: parseFloat(costOverrides.seedUnloading.rate) || costElements.seedUnloading.default_rate,
+          total_cost: costOverrides.seedUnloading.total
+        });
+      }
+      
+      if (costOverrides.transportInward.enabled) {
+        costOverrideData.push({
+          element_id: costElements.transportInward.element_id,
+          element_name: costElements.transportInward.element_name,
+          quantity: costOverrides.transportInward.quantity,
+          master_rate: costElements.transportInward.default_rate,
+          override_rate: parseFloat(costOverrides.transportInward.rate) || costElements.transportInward.default_rate,
+          total_cost: costOverrides.transportInward.total
+        });
+      }
+
       const payload = {
         ...invoiceData,
         items: validItems.map(item => ({
@@ -250,17 +414,39 @@ const Purchase = () => {
           gst_rate: parseFloat(item.gst_rate),
           transport_charges: parseFloat(item.transport_charges),
           handling_charges: parseFloat(item.handling_charges)
-        }))
+        })),
+        cost_overrides: costOverrideData // NEW - Include cost overrides
       };
 
       const response = await api.purchase.addPurchase(payload);
+      
+      // NEW - Log cost overrides if any were applied
+      if (costOverrideData.length > 0 && response.purchase_id) {
+        try {
+          // Save cost override audit trail
+          for (const override of costOverrideData) {
+            if (override.override_rate !== override.master_rate) {
+              await api.costManagement.saveBatchCosts({
+                record_id: response.purchase_id,
+                module: 'purchase',
+                costs: [override],
+                created_by: 'Purchase Module'
+              });
+            }
+          }
+        } catch (auditError) {
+          console.error('Error logging cost overrides:', auditError);
+          // Don't fail the purchase if audit logging fails
+        }
+      }
       
       if (response.traceable_codes) {
         setMessage(`✅ Purchase recorded successfully! 
 Invoice: ${response.invoice_ref}
 Total: ₹${response.total_cost}
 Items: ${response.items_count}
-Traceable Codes: ${response.traceable_codes.join(', ')}`);
+Traceable Codes: ${response.traceable_codes.join(', ')}
+${costOverrideData.length > 0 ? `Additional Costs Applied: ${costOverrideData.length} elements` : ''}`);
       } else {
         setMessage(`✅ Purchase recorded successfully! 
 Invoice: ${response.invoice_ref}
@@ -285,6 +471,12 @@ Items: ${response.items_count}`);
         handling_charges: '0'
       }]);
       setSelectedSupplier('');
+      
+      // NEW - Reset cost overrides
+      setCostOverrides({
+        seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 },
+        transportInward: { enabled: false, rate: '', quantity: 0, total: 0 }
+      });
       
     } catch (error) {
       setMessage(`❌ Error: ${error.message}`);
@@ -585,6 +777,129 @@ Items: ${response.items_count}`);
             )}
           </div>
 
+          {/* NEW - Additional Cost Elements Section */}
+          <div className="form-section" style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
+            <h3>Additional Cost Elements</h3>
+            
+            {/* Seed Unloading Cost */}
+            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'white', borderRadius: '5px', border: '1px solid #dee2e6' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="seedUnloadingCheck"
+                  checked={costOverrides.seedUnloading.enabled}
+                  onChange={(e) => handleCostOverrideChange('seedUnloading', 'enabled', e.target.checked)}
+                  style={{ marginRight: '10px' }}
+                />
+                <label htmlFor="seedUnloadingCheck" style={{ margin: 0, fontWeight: '600', fontSize: '16px' }}>
+                  ☑ Seed Unloading (Per Bag)
+                </label>
+              </div>
+              
+              {costOverrides.seedUnloading.enabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate</label>
+                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
+                      ₹{costElements.seedUnloading.default_rate}/bag
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate</label>
+                    <input
+                      type="number"
+                      placeholder={costElements.seedUnloading.default_rate.toString()}
+                      value={costOverrides.seedUnloading.rate}
+                      onChange={(e) => handleCostOverrideChange('seedUnloading', 'rate', e.target.value)}
+                      step="0.01"
+                      style={{
+                        width: '100%',
+                        padding: '5px',
+                        border: '1px solid #ced4da',
+                        borderRadius: '4px',
+                        fontWeight: costOverrides.seedUnloading.rate ? 'bold' : 'normal'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Bags</label>
+                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
+                      {costOverrides.seedUnloading.quantity}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Cost</label>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
+                      ₹{costOverrides.seedUnloading.total.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Transport - Seed Inward Cost */}
+            <div style={{ padding: '15px', backgroundColor: 'white', borderRadius: '5px', border: '1px solid #dee2e6' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="transportInwardCheck"
+                  checked={costOverrides.transportInward.enabled}
+                  onChange={(e) => handleCostOverrideChange('transportInward', 'enabled', e.target.checked)}
+                  style={{ marginRight: '10px' }}
+                />
+                <label htmlFor="transportInwardCheck" style={{ margin: 0, fontWeight: '600', fontSize: '16px' }}>
+                  ☑ Transport - Seed Inward (Per Kg)
+                </label>
+              </div>
+              
+              {costOverrides.transportInward.enabled && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate</label>
+                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
+                      ₹{costElements.transportInward.default_rate}/kg
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate</label>
+                    <input
+                      type="number"
+                      placeholder={costElements.transportInward.default_rate.toString()}
+                      value={costOverrides.transportInward.rate}
+                      onChange={(e) => handleCostOverrideChange('transportInward', 'rate', e.target.value)}
+                      step="0.01"
+                      style={{
+                        width: '100%',
+                        padding: '5px',
+                        border: '1px solid #ced4da',
+                        borderRadius: '4px',
+                        fontWeight: costOverrides.transportInward.rate ? 'bold' : 'normal'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Quantity (kg)</label>
+                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
+                      {costOverrides.transportInward.quantity.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Cost</label>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
+                      ₹{costOverrides.transportInward.total.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Info Note */}
+            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d1ecf1', borderRadius: '5px', fontSize: '14px' }}>
+              <strong>ℹ️ Note:</strong> These additional costs will be added to the landed cost of materials.
+              Override rates if market rates differ from master rates.
+            </div>
+          </div>
+
           {/* Summary Section */}
           <div className="cost-summary">
             <h3>Invoice Summary</h3>
@@ -605,6 +920,19 @@ Items: ${response.items_count}`);
                 <span>Handling Charges:</span>
                 <span>₹{totals.handlingCharges}</span>
               </div>
+              {/* NEW - Show additional costs in summary */}
+              {costOverrides.seedUnloading.enabled && (
+                <div className="summary-row">
+                  <span>Seed Unloading:</span>
+                  <span>₹{totals.seedUnloadingCost}</span>
+                </div>
+              )}
+              {costOverrides.transportInward.enabled && (
+                <div className="summary-row">
+                  <span>Transport - Seed Inward:</span>
+                  <span>₹{totals.transportInwardCost}</span>
+                </div>
+              )}
               <div className="summary-row total">
                 <span>Grand Total:</span>
                 <span>₹{totals.grandTotal}</span>
