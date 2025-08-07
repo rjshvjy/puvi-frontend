@@ -1,6 +1,6 @@
-// Material Sales Module for PUVI Oil Manufacturing System
-// Handles by-product sales with FIFO allocation and cost reconciliation
 // File Path: puvi-frontend/src/modules/MaterialSales/index.js
+// Material Sales Module with Packing Cost Integration
+// Added: Sacks/Bags packing cost field with override capability
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
@@ -19,7 +19,15 @@ const MaterialSales = () => {
   const [oilTypes, setOilTypes] = useState([]);
   const [summary, setSummary] = useState(null);
   
-  // Sale form data
+  // NEW - Cost elements state for packing cost
+  const [packingCostElement, setPackingCostElement] = useState({
+    element_id: null,
+    element_name: 'Sacks/Bags',
+    default_rate: 0.3,
+    unit_type: 'Per Kg'
+  });
+  
+  // Sale form data - UPDATED with packing cost fields
   const [saleData, setSaleData] = useState({
     byproduct_type: 'oil_cake',
     oil_type: '',
@@ -29,6 +37,9 @@ const MaterialSales = () => {
     quantity_sold: '',
     sale_rate: '',
     transport_cost: '0',
+    packing_cost_enabled: false, // NEW
+    packing_cost_rate: '', // NEW
+    packing_cost_total: '0', // NEW
     notes: ''
   });
   
@@ -40,7 +51,38 @@ const MaterialSales = () => {
     fetchByproductTypes();
     fetchInventory('oil_cake');
     fetchSalesHistory();
+    fetchPackingCostElement(); // NEW - Fetch packing cost element
   }, []);
+  
+  // NEW - Fetch packing cost element from master
+  const fetchPackingCostElement = async () => {
+    try {
+      const response = await api.costManagement.getCostElementsByStage('sales');
+      if (response.success) {
+        const elements = response.cost_elements;
+        
+        // Find sacks/bags element
+        const packingElement = elements.find(e => 
+          e.element_name === 'Sacks/Bags' || 
+          e.element_name.toLowerCase().includes('sack') || 
+          e.element_name.toLowerCase().includes('bag') ||
+          e.element_name.toLowerCase().includes('packing')
+        );
+        
+        if (packingElement) {
+          setPackingCostElement({
+            element_id: packingElement.element_id,
+            element_name: packingElement.element_name,
+            default_rate: packingElement.default_rate,
+            unit_type: packingElement.unit_type
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching packing cost element:', error);
+      // Continue with default rate if API fails
+    }
+  };
   
   // Fetch by-product types
   const fetchByproductTypes = async () => {
@@ -96,13 +138,48 @@ const MaterialSales = () => {
     }
   };
   
-  // Handle form changes
+  // Handle form changes - UPDATED with packing cost logic
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setSaleData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    const { name, value, type, checked } = e.target;
+    
+    if (type === 'checkbox') {
+      setSaleData(prev => {
+        const updated = { ...prev, [name]: checked };
+        
+        // If disabling packing cost, reset the values
+        if (name === 'packing_cost_enabled' && !checked) {
+          updated.packing_cost_rate = '';
+          updated.packing_cost_total = '0';
+        } else if (name === 'packing_cost_enabled' && checked) {
+          // Calculate packing cost with default rate when enabled
+          const quantity = parseFloat(prev.quantity_sold) || 0;
+          const rate = packingCostElement.default_rate;
+          updated.packing_cost_total = (quantity * rate).toFixed(2);
+        }
+        
+        return updated;
+      });
+    } else {
+      setSaleData(prev => {
+        const updated = { ...prev, [name]: value };
+        
+        // Calculate packing cost when quantity changes
+        if (name === 'quantity_sold' && prev.packing_cost_enabled) {
+          const quantity = parseFloat(value) || 0;
+          const rate = parseFloat(prev.packing_cost_rate) || packingCostElement.default_rate;
+          updated.packing_cost_total = (quantity * rate).toFixed(2);
+        }
+        
+        // Calculate packing cost when rate changes
+        if (name === 'packing_cost_rate' && prev.packing_cost_enabled) {
+          const quantity = parseFloat(prev.quantity_sold) || 0;
+          const rate = parseFloat(value) || packingCostElement.default_rate;
+          updated.packing_cost_total = (quantity * rate).toFixed(2);
+        }
+        
+        return updated;
+      });
+    }
     
     // If byproduct type changes, fetch new inventory
     if (name === 'byproduct_type') {
@@ -150,11 +227,13 @@ const MaterialSales = () => {
     }
   };
   
-  // Calculate cost impact
+  // Calculate cost impact - UPDATED with packing cost
   const calculateCostImpact = () => {
     if (!saleData.sale_rate || fifoPreview.length === 0) return null;
     
     const saleRate = parseFloat(saleData.sale_rate);
+    const packingCost = saleData.packing_cost_enabled ? parseFloat(saleData.packing_cost_total) : 0;
+    const quantitySold = parseFloat(saleData.quantity_sold) || 1;
     let totalAdjustment = 0;
     
     fifoPreview.forEach(item => {
@@ -162,14 +241,19 @@ const MaterialSales = () => {
       totalAdjustment += adjustment;
     });
     
+    // Add packing cost impact (it increases oil cost)
+    totalAdjustment += packingCost;
+    
     return {
       totalAdjustment,
+      packingCostImpact: packingCost,
       isPositive: totalAdjustment < 0, // Negative adjustment means sold for more
-      perKgImpact: totalAdjustment / parseFloat(saleData.quantity_sold || 1)
+      perKgImpact: totalAdjustment / quantitySold,
+      netRevenue: (saleRate * quantitySold) - packingCost - (parseFloat(saleData.transport_cost) || 0)
     };
   };
   
-  // Handle form submission
+  // Handle form submission - UPDATED with packing cost
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -187,13 +271,48 @@ const MaterialSales = () => {
     setMessage('');
     
     try {
-      const response = await api.sales.addMaterialSale(saleData);
+      // Prepare submission data with packing cost
+      const submissionData = {
+        ...saleData,
+        packing_cost: saleData.packing_cost_enabled ? parseFloat(saleData.packing_cost_total) : 0,
+        packing_cost_rate: saleData.packing_cost_enabled ? 
+          (parseFloat(saleData.packing_cost_rate) || packingCostElement.default_rate) : 0
+      };
+      
+      const response = await api.sales.addMaterialSale(submissionData);
+      
+      // NEW - Log packing cost override if different from master
+      if (response.success && saleData.packing_cost_enabled && saleData.packing_cost_rate) {
+        const usedRate = parseFloat(saleData.packing_cost_rate);
+        if (usedRate !== packingCostElement.default_rate) {
+          try {
+            await api.costManagement.saveBatchCosts({
+              record_id: response.sale_id,
+              module: 'material_sales',
+              costs: [{
+                element_id: packingCostElement.element_id,
+                element_name: packingCostElement.element_name,
+                quantity: parseFloat(saleData.quantity_sold),
+                master_rate: packingCostElement.default_rate,
+                override_rate: usedRate,
+                total_cost: parseFloat(saleData.packing_cost_total)
+              }],
+              created_by: 'Material Sales Module'
+            });
+          } catch (auditError) {
+            console.error('Error logging packing cost override:', auditError);
+          }
+        }
+      }
       
       if (response.success) {
+        const packingInfo = saleData.packing_cost_enabled ? 
+          `\nPacking Cost: ₹${saleData.packing_cost_total}` : '';
+        
         setMessage(`✅ Sale recorded successfully!
 Sale ID: ${response.sale_id}
 Quantity: ${response.quantity_sold} kg
-Total Amount: ₹${response.total_amount.toFixed(2)}
+Total Amount: ₹${response.total_amount.toFixed(2)}${packingInfo}
 Batches Allocated: ${response.allocations.length}
 Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
         
@@ -207,6 +326,9 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
           quantity_sold: '',
           sale_rate: '',
           transport_cost: '0',
+          packing_cost_enabled: false,
+          packing_cost_rate: '',
+          packing_cost_total: '0',
           notes: ''
         });
         setFifoPreview([]);
@@ -402,6 +524,90 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   />
                 </div>
                 
+                {/* NEW - Packing Cost Section */}
+                <div style={{ 
+                  marginTop: '20px', 
+                  padding: '15px', 
+                  backgroundColor: '#f8f9fa', 
+                  borderRadius: '8px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                    <input
+                      type="checkbox"
+                      id="packingCostCheck"
+                      name="packing_cost_enabled"
+                      checked={saleData.packing_cost_enabled}
+                      onChange={handleInputChange}
+                      style={{ marginRight: '10px' }}
+                    />
+                    <label htmlFor="packingCostCheck" style={{ 
+                      margin: 0, 
+                      fontWeight: '600', 
+                      fontSize: '16px',
+                      cursor: 'pointer' 
+                    }}>
+                      📦 Sacks/Bags Packing Cost
+                    </label>
+                  </div>
+                  
+                  {saleData.packing_cost_enabled && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate (₹/kg)</label>
+                        <div style={{ fontSize: '16px', fontWeight: '500', padding: '8px', backgroundColor: 'white', borderRadius: '4px' }}>
+                          ₹{packingCostElement.default_rate}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate (₹/kg)</label>
+                        <input
+                          type="number"
+                          name="packing_cost_rate"
+                          placeholder={packingCostElement.default_rate.toString()}
+                          value={saleData.packing_cost_rate}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #ced4da',
+                            borderRadius: '4px',
+                            fontWeight: saleData.packing_cost_rate ? 'bold' : 'normal',
+                            backgroundColor: 'white'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Packing Cost</label>
+                        <div style={{ 
+                          fontSize: '16px', 
+                          fontWeight: 'bold', 
+                          color: '#dc3545',
+                          padding: '8px',
+                          backgroundColor: 'white',
+                          borderRadius: '4px',
+                          border: '1px solid #dee2e6'
+                        }}>
+                          ₹{saleData.packing_cost_total}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {saleData.packing_cost_enabled && (
+                    <div style={{ 
+                      marginTop: '10px', 
+                      padding: '8px', 
+                      backgroundColor: '#fff3cd', 
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}>
+                      <strong>⚠️ Note:</strong> Packing cost will be deducted from sale revenue and will increase the net oil cost retroactively.
+                    </div>
+                  )}
+                </div>
+                
                 <div className="form-group">
                   <label>Notes</label>
                   <textarea
@@ -414,12 +620,27 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   />
                 </div>
                 
-                {/* Cost Impact Summary */}
+                {/* Cost Impact Summary - UPDATED with packing cost */}
                 {costImpact && (
                   <div className={`cost-impact-card ${costImpact.isPositive ? 'positive' : 'negative'}`}>
                     <h4>Cost Impact Preview</h4>
+                    {saleData.packing_cost_enabled && (
+                      <div className="impact-row" style={{ borderBottom: '1px solid #e0e0e0', paddingBottom: '8px', marginBottom: '8px' }}>
+                        <span>Packing Cost Impact:</span>
+                        <span className="impact-value" style={{ color: '#dc3545' }}>
+                          +₹{costImpact.packingCostImpact.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                     <div className="impact-row">
-                      <span>Total Adjustment:</span>
+                      <span>Sale Rate Adjustment:</span>
+                      <span className="impact-value">
+                        {costImpact.totalAdjustment - costImpact.packingCostImpact > 0 ? '+' : ''}
+                        ₹{(costImpact.totalAdjustment - costImpact.packingCostImpact).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="impact-row" style={{ fontWeight: 'bold', borderTop: '1px solid #e0e0e0', paddingTop: '8px', marginTop: '8px' }}>
+                      <span>Total Oil Cost Impact:</span>
                       <span className="impact-value">
                         {costImpact.isPositive ? '↓' : '↑'} ₹{Math.abs(costImpact.totalAdjustment).toFixed(2)}
                       </span>
@@ -430,10 +651,16 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                         {costImpact.isPositive ? '-' : '+'} ₹{Math.abs(costImpact.perKgImpact).toFixed(2)}
                       </span>
                     </div>
-                    <small>
+                    <div className="impact-row" style={{ marginTop: '10px', color: '#28a745' }}>
+                      <span>Net Revenue:</span>
+                      <span className="impact-value">
+                        ₹{costImpact.netRevenue.toFixed(2)}
+                      </span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '10px', fontStyle: 'italic' }}>
                       {costImpact.isPositive 
-                        ? 'Selling above estimate - Oil cost will decrease'
-                        : 'Selling below estimate - Oil cost will increase'}
+                        ? 'Net positive impact - Oil cost will decrease'
+                        : 'Net negative impact - Oil cost will increase'}
                     </small>
                   </div>
                 )}
@@ -534,6 +761,7 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                   <th>Quantity</th>
                   <th>Rate</th>
                   <th>Amount</th>
+                  <th>Packing</th>
                   <th>Batches</th>
                   <th>Adjustment</th>
                 </tr>
@@ -553,6 +781,9 @@ Cost Adjustment: ₹${response.total_cost_adjustment.toFixed(2)}`);
                     <td className="text-right">{sale.quantity_sold.toFixed(2)} kg</td>
                     <td className="text-right">₹{sale.sale_rate.toFixed(2)}</td>
                     <td className="text-right">₹{sale.total_amount.toFixed(2)}</td>
+                    <td className="text-right">
+                      {sale.packing_cost ? `₹${sale.packing_cost.toFixed(2)}` : '-'}
+                    </td>
                     <td className="text-center">{sale.batch_count}</td>
                     <td className={`text-right ${sale.total_adjustment > 0 ? 'negative' : 'positive'}`}>
                       {sale.total_adjustment > 0 ? '+' : ''}₹{sale.total_adjustment.toFixed(2)}
