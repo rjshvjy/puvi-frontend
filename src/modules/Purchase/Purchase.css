@@ -358,7 +358,7 @@ select.form-control {
 }
 
 /* Specific column widths to prevent overlap */
-.items-table th:nth-child(1) { min-width: 250px; } /* Material - wider for dropdown */
+.items-table th:nth-child(1) { min-width: 300px; } /* Material - wider for dropdown */
 .items-table th:nth-child(2) { min-width: 100px; } /* Quantity */
 .items-table th:nth-child(3) { min-width: 60px; }  /* Unit */
 .items-table th:nth-child(4) { min-width: 100px; } /* Rate */
@@ -409,7 +409,7 @@ select.form-control {
 /* Material dropdown specific styling */
 .items-table td:first-child .form-control,
 .items-table .material-select {
-  min-width: 240px;
+  min-width: 290px;
   font-size: 13px;
 }
 
@@ -483,6 +483,45 @@ select.form-control {
   gap: calc(var(--spacing-unit) * 2);
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* UOM Help Text */
+.uom-help-text {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing-unit) * 0.75);
+  padding: calc(var(--spacing-unit) * 1);
+  background-color: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: var(--border-radius);
+  margin-bottom: calc(var(--spacing-unit) * 1.25);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.uom-help-icon {
+  font-size: 18px;
+  color: #1976d2;
+  flex-shrink: 0;
+}
+
+.uom-help-content {
+  color: #0d47a1;
+}
+
+.uom-help-content strong {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.uom-help-content ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.uom-help-content li {
+  margin-bottom: 4px;
 }
 
 .uom-group {
