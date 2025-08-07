@@ -1,8 +1,3 @@
-# File: `puvi-frontend/src/modules/MaterialWriteoff/index.js`
-**Version: 2.0.0 - August 8, 2025**
-**Changes: Added category filter and search functionality**
-
-
 /**
  * MaterialWriteoff Component v2.0.0
  * Last Modified: August 8, 2025
@@ -540,4 +535,3 @@ const MaterialWriteoff = () => {
 export default MaterialWriteoff;
 
 /* End of MaterialWriteoff Component v2.0.0 - August 8, 2025 */
-```
