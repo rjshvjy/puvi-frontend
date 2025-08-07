@@ -36,24 +36,26 @@
 .tab-button {
   padding: 10px 20px;
   border: none;
-  background: transparent;
-  color: #333;
+  background: #dc3545;  /* Red background for all tabs */
+  color: white;  /* White text for all tabs */
   cursor: pointer;
   border-radius: 5px 5px 0 0;
   margin-right: 5px;
   font-size: 16px;
   font-weight: normal;
   transition: all 0.2s;
+  opacity: 0.8;  /* Slightly transparent when not active */
 }
 
 .tab-button.active {
   background: #dc3545;
-  color: white;
+  color: white !important;  /* Ensure white text color with !important */
   font-weight: bold;
+  opacity: 1;  /* Full opacity when active */
 }
 
 .tab-button:hover:not(.active) {
-  background: #f8f9fa;
+  opacity: 0.9;  /* Slightly more visible on hover */
 }
 
 /* Message Alert */
