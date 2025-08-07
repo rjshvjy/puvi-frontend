@@ -2,7 +2,7 @@
 **Version: 2.0.0 - August 8, 2025**
 **Changes: Added category filter and search functionality**
 
-```javascript
+
 /**
  * MaterialWriteoff Component v2.0.0
  * Last Modified: August 8, 2025
