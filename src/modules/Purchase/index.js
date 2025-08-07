@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import CostElementRow from '../../components/CostManagement/CostElementRow';
 import './Purchase.css';
 
 const Purchase = () => {
@@ -31,24 +30,9 @@ const Purchase = () => {
   }]);
   
   const [uomGroups, setUomGroups] = useState({
-    kg: { percentage: 60, items: [] },
-    L: { percentage: 20, items: [] },
-    Nos: { percentage: 20, items: [] }
-  });
-  
-  // Cost Management States - Only Seed Unloading as additional cost
-  const [costElements, setCostElements] = useState({
-    seedUnloading: { 
-      element_id: null, 
-      element_name: 'Seed Unloading', 
-      default_rate: 0.12, 
-      unit_type: 'Per Bag',
-      override_rate: null 
-    }
-  });
-  
-  const [costOverrides, setCostOverrides] = useState({
-    seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 }
+    kg: { percentage: 100, items: [] },
+    L: { percentage: 0, items: [] },
+    Nos: { percentage: 0, items: [] }
   });
   
   const [message, setMessage] = useState('');
@@ -56,96 +40,12 @@ const Purchase = () => {
 
   useEffect(() => {
     fetchSuppliers();
-    fetchCostElementsMaster();
   }, []);
 
   useEffect(() => {
     // Recalculate transport/handling allocation when items or percentages change
     allocateCharges();
-    calculateAdditionalCosts();
   }, [items, invoiceData.transport_cost, invoiceData.handling_charges, uomGroups]);
-
-  // Fetch cost elements from master - Only Seed Unloading
-  const fetchCostElementsMaster = async () => {
-    try {
-      const response = await api.costManagement.getCostElementsByStage('purchase');
-      if (response.success) {
-        const elements = response.cost_elements;
-        
-        // Find seed unloading element
-        const seedUnloadingElement = elements.find(e => 
-          e.element_name === 'Seed Unloading' || e.element_name.includes('Unloading')
-        );
-        
-        if (seedUnloadingElement) {
-          setCostElements(prev => ({
-            ...prev,
-            seedUnloading: {
-              ...prev.seedUnloading,
-              element_id: seedUnloadingElement.element_id,
-              default_rate: seedUnloadingElement.default_rate,
-              unit_type: seedUnloadingElement.unit_type
-            }
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching cost elements:', error);
-      // Continue with default rates if API fails
-    }
-  };
-
-  // Calculate additional costs based on quantities - Only Seed Unloading
-  const calculateAdditionalCosts = () => {
-    // Calculate total quantity for seed items (kg based)
-    let totalKgQuantity = 0;
-    let totalBags = 0;
-    
-    items.forEach(item => {
-      if (item.material_id && item.quantity) {
-        const unit = getMaterialUnit(item.material_id);
-        const quantity = parseFloat(item.quantity) || 0;
-        
-        if (unit === 'kg') {
-          totalKgQuantity += quantity;
-          // Assuming 50kg per bag for bag calculation
-          totalBags += quantity / 50;
-        }
-      }
-    });
-    
-    // Update cost overrides with calculated quantities - Only Seed Unloading
-    setCostOverrides(prev => ({
-      seedUnloading: {
-        ...prev.seedUnloading,
-        quantity: Math.ceil(totalBags), // Round up bags
-        total: Math.ceil(totalBags) * (parseFloat(prev.seedUnloading.rate) || costElements.seedUnloading.default_rate)
-      }
-    }));
-  };
-
-  // Handle cost override changes - Only for Seed Unloading
-  const handleCostOverrideChange = (costType, field, value) => {
-    if (costType !== 'seedUnloading') return; // Only handle seed unloading
-    
-    setCostOverrides(prev => {
-      const updated = { ...prev };
-      
-      if (field === 'enabled') {
-        updated.seedUnloading.enabled = value;
-        if (!value) {
-          updated.seedUnloading.rate = '';
-        }
-      } else if (field === 'rate') {
-        updated.seedUnloading.rate = value;
-        const quantity = updated.seedUnloading.quantity;
-        const rate = parseFloat(value) || costElements.seedUnloading.default_rate;
-        updated.seedUnloading.total = quantity * rate;
-      }
-      
-      return updated;
-    });
-  };
 
   const fetchSuppliers = async () => {
     try {
@@ -295,6 +195,8 @@ const Purchase = () => {
   const calculateTotals = () => {
     let subtotal = 0;
     let totalGst = 0;
+    let totalAllocatedTransport = 0;
+    let totalAllocatedHandling = 0;
 
     items.forEach(item => {
       if (item.quantity && item.rate) {
@@ -306,26 +208,24 @@ const Purchase = () => {
         
         subtotal += amount;
         totalGst += gstAmount;
+        totalAllocatedTransport += itemTransport;
+        totalAllocatedHandling += itemHandling;
       }
     });
 
     const transportCost = parseFloat(invoiceData.transport_cost) || 0;
     const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
     
-    // Only include Seed Unloading as additional cost
-    const seedUnloadingCost = costOverrides.seedUnloading.enabled ? costOverrides.seedUnloading.total : 0;
-    const additionalCosts = seedUnloadingCost;
-    
-    const grandTotal = subtotal + totalGst + transportCost + handlingCharges + additionalCosts;
+    const grandTotal = subtotal + totalGst + transportCost + handlingCharges;
 
     return {
       subtotal: subtotal.toFixed(2),
       totalGst: totalGst.toFixed(2),
       transportCost: transportCost.toFixed(2),
       handlingCharges: handlingCharges.toFixed(2),
-      additionalCosts: additionalCosts.toFixed(2),
-      seedUnloadingCost: seedUnloadingCost.toFixed(2),
-      grandTotal: grandTotal.toFixed(2)
+      grandTotal: grandTotal.toFixed(2),
+      totalAllocatedTransport: totalAllocatedTransport.toFixed(2),
+      totalAllocatedHandling: totalAllocatedHandling.toFixed(2)
     };
   };
 
@@ -347,24 +247,34 @@ const Purchase = () => {
       return;
     }
 
+    // Validate transport and handling allocation
+    const totals = calculateTotals();
+    const transportCost = parseFloat(invoiceData.transport_cost) || 0;
+    const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
+    const allocatedTransport = parseFloat(totals.totalAllocatedTransport) || 0;
+    const allocatedHandling = parseFloat(totals.totalAllocatedHandling) || 0;
+    
+    // Check if there's a mismatch in allocation (tolerance of 0.01 for rounding)
+    if (transportCost > 0 && Math.abs(transportCost - allocatedTransport) > 0.01) {
+      setMessage(`❌ Transport cost allocation mismatch! 
+Total Transport: ₹${transportCost.toFixed(2)} 
+Allocated to items: ₹${allocatedTransport.toFixed(2)}
+Please ensure UOM allocation totals 100% and all items have proper units.`);
+      return;
+    }
+    
+    if (handlingCharges > 0 && Math.abs(handlingCharges - allocatedHandling) > 0.01) {
+      setMessage(`❌ Handling charges allocation mismatch! 
+Total Handling: ₹${handlingCharges.toFixed(2)} 
+Allocated to items: ₹${allocatedHandling.toFixed(2)}
+Please ensure UOM allocation totals 100% and all items have proper units.`);
+      return;
+    }
+
     setLoading(true);
     setMessage('');
 
     try {
-      // Prepare cost overrides for submission - Only Seed Unloading
-      const costOverrideData = [];
-      
-      if (costOverrides.seedUnloading.enabled) {
-        costOverrideData.push({
-          element_id: costElements.seedUnloading.element_id,
-          element_name: costElements.seedUnloading.element_name,
-          quantity: costOverrides.seedUnloading.quantity,
-          master_rate: costElements.seedUnloading.default_rate,
-          override_rate: parseFloat(costOverrides.seedUnloading.rate) || costElements.seedUnloading.default_rate,
-          total_cost: costOverrides.seedUnloading.total
-        });
-      }
-
       const payload = {
         ...invoiceData,
         items: validItems.map(item => ({
@@ -374,39 +284,17 @@ const Purchase = () => {
           gst_rate: parseFloat(item.gst_rate),
           transport_charges: parseFloat(item.transport_charges),
           handling_charges: parseFloat(item.handling_charges)
-        })),
-        cost_overrides: costOverrideData
+        }))
       };
 
       const response = await api.purchase.addPurchase(payload);
-      
-      // Log cost overrides if any were applied
-      if (costOverrideData.length > 0 && response.purchase_id) {
-        try {
-          // Save cost override audit trail
-          for (const override of costOverrideData) {
-            if (override.override_rate !== override.master_rate) {
-              await api.costManagement.saveBatchCosts({
-                record_id: response.purchase_id,
-                module: 'purchase',
-                costs: [override],
-                created_by: 'Purchase Module'
-              });
-            }
-          }
-        } catch (auditError) {
-          console.error('Error logging cost overrides:', auditError);
-          // Don't fail the purchase if audit logging fails
-        }
-      }
       
       if (response.traceable_codes) {
         setMessage(`✅ Purchase recorded successfully! 
 Invoice: ${response.invoice_ref}
 Total: ₹${response.total_cost}
 Items: ${response.items_count}
-Traceable Codes: ${response.traceable_codes.join(', ')}
-${costOverrideData.length > 0 ? `Additional Costs Applied: ${costOverrideData.length} elements` : ''}`);
+Traceable Codes: ${response.traceable_codes.join(', ')}`);
       } else {
         setMessage(`✅ Purchase recorded successfully! 
 Invoice: ${response.invoice_ref}
@@ -431,11 +319,6 @@ Items: ${response.items_count}`);
         handling_charges: '0'
       }]);
       setSelectedSupplier('');
-      
-      // Reset cost overrides - Only Seed Unloading
-      setCostOverrides({
-        seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 }
-      });
       
     } catch (error) {
       setMessage(`❌ Error: ${error.message}`);
@@ -539,10 +422,10 @@ Items: ${response.items_count}`);
             </div>
 
             <div className="items-table-container">
-              <table className="items-table" style={{ minWidth: '1400px', tableLayout: 'auto' }}>
+              <table className="items-table" style={{ minWidth: '1450px', tableLayout: 'auto' }}>
                 <thead>
                   <tr>
-                    <th style={{ minWidth: '250px' }}>Material</th>
+                    <th style={{ minWidth: '350px' }}>Material</th>
                     <th style={{ minWidth: '100px' }}>Quantity</th>
                     <th style={{ minWidth: '60px' }}>Unit</th>
                     <th style={{ minWidth: '100px' }}>Rate</th>
@@ -570,8 +453,8 @@ Items: ${response.items_count}`);
                             onChange={(e) => handleItemChange(index, 'material_id', e.target.value)}
                             disabled={!selectedSupplier}
                             className="form-control material-select"
-                            style={{ minWidth: '240px' }}
-                            title={materials.find(m => m.material_id === parseInt(item.material_id))?.material_name || 'Select Material'}
+                            style={{ minWidth: '340px' }}
+                            title={item.material_id ? materials.find(m => m.material_id === parseInt(item.material_id))?.material_name : 'Select Material'}
                           >
                             <option value="">Select Material</option>
                             {materials.map(material => (
@@ -688,6 +571,52 @@ Items: ${response.items_count}`);
             {(parseFloat(invoiceData.transport_cost) > 0 || parseFloat(invoiceData.handling_charges) > 0) && (
               <div className="allocation-settings">
                 <h4 className="subsection-title">UOM Group Allocation</h4>
+                
+                <div className="uom-help-text">
+                  <span className="uom-help-icon">💡</span>
+                  <div className="uom-help-content">
+                    <strong>How to use UOM Group Allocation:</strong>
+                    <ul>
+                      <li>Distribute transport & handling costs across different unit types</li>
+                      <li>Weight (kg): For seed/grain materials - default 100% allocation</li>
+                      <li>Volume (L): For liquid materials like oil - set if you have liquid items</li>
+                      <li>Count (Nos): For packed items/tools - set if you have count-based items</li>
+                      <li><strong>⚠️ Total must equal 100% or costs will be lost!</strong></li>
+                      <li>Costs are allocated proportionally within each group based on quantity</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                {/* Allocation Mismatch Warning */}
+                {(() => {
+                  const transportCost = parseFloat(invoiceData.transport_cost) || 0;
+                  const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
+                  const allocatedTransport = parseFloat(totals.totalAllocatedTransport) || 0;
+                  const allocatedHandling = parseFloat(totals.totalAllocatedHandling) || 0;
+                  
+                  const hasTransportMismatch = transportCost > 0 && Math.abs(transportCost - allocatedTransport) > 0.01;
+                  const hasHandlingMismatch = handlingCharges > 0 && Math.abs(handlingCharges - allocatedHandling) > 0.01;
+                  
+                  if (hasTransportMismatch || hasHandlingMismatch) {
+                    return (
+                      <div className="allocation-warning">
+                        <span className="warning-icon">⚠️</span>
+                        <div className="warning-content">
+                          <strong>Cost Allocation Mismatch!</strong>
+                          {hasTransportMismatch && (
+                            <div>Transport: ₹{transportCost.toFixed(2)} entered but only ₹{allocatedTransport.toFixed(2)} allocated to items</div>
+                          )}
+                          {hasHandlingMismatch && (
+                            <div>Handling: ₹{handlingCharges.toFixed(2)} entered but only ₹{allocatedHandling.toFixed(2)} allocated to items</div>
+                          )}
+                          <div><strong>Fix this before saving or costs will be lost!</strong></div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 <div className="uom-groups">
                   <div className="uom-group">
                     <label className="uom-label">Weight (kg)</label>
@@ -742,37 +671,6 @@ Items: ${response.items_count}`);
             )}
           </div>
 
-          {/* Additional Cost Elements Section - Only Seed Unloading */}
-          <div className="form-card">
-            <h3 className="section-title">Additional Cost Elements</h3>
-            
-            <div className="cost-elements-container">
-              <CostElementRow
-                elementName="Seed Unloading"
-                masterRate={costElements.seedUnloading.default_rate}
-                unitType="Per Bag"
-                quantity={costOverrides.seedUnloading.quantity}
-                enabled={costOverrides.seedUnloading.enabled}
-                category="Labor"
-                overrideRate={costOverrides.seedUnloading.rate}
-                onToggle={(enabled) => handleCostOverrideChange('seedUnloading', 'enabled', enabled)}
-                onOverrideChange={(rate) => handleCostOverrideChange('seedUnloading', 'rate', rate)}
-                icon="📦"
-                helpText="Cost for unloading seed bags from transport vehicles"
-                variant="default"
-              />
-            </div>
-            
-            <div className="cost-info-note">
-              <span className="info-icon">ℹ️</span>
-              <span className="info-text">
-                Seed unloading cost will be added to the landed cost of materials. 
-                Override rate if market rate differs from master rate.
-                Transport costs are already captured in the Transport & Handling section above.
-              </span>
-            </div>
-          </div>
-
           {/* Summary Section */}
           <div className="form-card summary-card">
             <h3 className="section-title">Invoice Summary</h3>
@@ -793,12 +691,6 @@ Items: ${response.items_count}`);
                 <span className="summary-label">Handling Charges:</span>
                 <span className="summary-value">₹{totals.handlingCharges}</span>
               </div>
-              {costOverrides.seedUnloading.enabled && (
-                <div className="summary-row">
-                  <span className="summary-label">Seed Unloading:</span>
-                  <span className="summary-value">₹{totals.seedUnloadingCost}</span>
-                </div>
-              )}
               <div className="summary-row total">
                 <span className="summary-label">Grand Total:</span>
                 <span className="summary-value">₹{totals.grandTotal}</span>
