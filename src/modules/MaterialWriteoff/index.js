@@ -1,9 +1,24 @@
+# File: `puvi-frontend/src/modules/MaterialWriteoff/index.js`
+**Version: 2.0.0 - August 8, 2025**
+**Changes: Added category filter and search functionality**
+
+```javascript
+/**
+ * MaterialWriteoff Component v2.0.0
+ * Last Modified: August 8, 2025
+ * Features: Category filtering, search functionality, fixed API response handling
+ */
+
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import './MaterialWriteoff.css';
 
 const MaterialWriteoff = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [writeoffReasons, setWriteoffReasons] = useState([]);
   const [writeoffHistory, setWriteoffHistory] = useState([]);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
@@ -29,11 +44,39 @@ const MaterialWriteoff = () => {
     fetchWriteoffHistory();
   }, []);
 
-  const fetchInventoryItems = async () => {
+  // Handle category filter change
+  useEffect(() => {
+    if (selectedCategory) {
+      fetchInventoryItems(selectedCategory);
+    } else {
+      fetchInventoryItems();
+    }
+    setSearchTerm(''); // Clear search when category changes
+  }, [selectedCategory]);
+
+  // Handle search filter (client-side)
+  useEffect(() => {
+    if (searchTerm) {
+      const filtered = inventoryItems.filter(item =>
+        item.material_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredItems(filtered);
+    } else {
+      setFilteredItems(inventoryItems);
+    }
+  }, [searchTerm, inventoryItems]);
+
+  const fetchInventoryItems = async (category = null) => {
     try {
-      const response = await api.writeoff.getInventoryForWriteoff();
+      const params = category ? { category } : {};
+      const response = await api.writeoff.getInventoryForWriteoff(params);
       if (response.success) {
         setInventoryItems(response.inventory_items || []);
+        setFilteredItems(response.inventory_items || []);
+        // Extract categories from category_summary if not already loaded
+        if (!categories.length && response.category_summary) {
+          setCategories(response.category_summary);
+        }
       }
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -181,86 +224,87 @@ const MaterialWriteoff = () => {
     : {};
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', color: '#333' }}>
-        Material Write-off Module
-      </h2>
+    <div className="writeoff-container">
+      <h2 className="writeoff-title">Material Write-off Module</h2>
 
       {/* Tab Navigation */}
-      <div style={{ marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
+      <div className="tab-navigation">
         <button 
           onClick={() => setActiveTab('new')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            background: activeTab === 'new' ? '#dc3545' : 'transparent',
-            color: activeTab === 'new' ? 'white' : '#333',
-            cursor: 'pointer',
-            borderRadius: '5px 5px 0 0',
-            marginRight: '5px',
-            fontSize: '16px',
-            fontWeight: activeTab === 'new' ? 'bold' : 'normal'
-          }}
+          className={`tab-button ${activeTab === 'new' ? 'active' : ''}`}
         >
           New Write-off
         </button>
         <button 
           onClick={() => setActiveTab('history')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            background: activeTab === 'history' ? '#dc3545' : 'transparent',
-            color: activeTab === 'history' ? 'white' : '#333',
-            cursor: 'pointer',
-            borderRadius: '5px 5px 0 0',
-            fontSize: '16px',
-            fontWeight: activeTab === 'history' ? 'bold' : 'normal'
-          }}
+          className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
         >
           Write-off History
         </button>
       </div>
 
       {message && (
-        <div style={{
-          padding: '15px',
-          marginBottom: '20px',
-          borderRadius: '4px',
-          backgroundColor: message.includes('✅') ? '#d4edda' : '#f8d7da',
-          color: message.includes('✅') ? '#155724' : '#721c24',
-          border: `1px solid ${message.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`,
-          whiteSpace: 'pre-line'
-        }}>
+        <div className={`message-alert ${message.includes('✅') ? 'success' : 'error'}`}>
           {message}
         </div>
       )}
 
       {activeTab === 'new' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div className="writeoff-grid">
           {/* Material Selection */}
-          <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>Select Material</h3>
-            {inventoryItems.length === 0 ? (
-              <p style={{ color: '#666' }}>No materials available in inventory</p>
+          <div className="panel">
+            <h3 className="panel-title">Select Material</h3>
+            
+            {/* Filter Controls */}
+            <div className="filter-controls">
+              <div className="form-group">
+                <label className="filter-label">Category:</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.category} value={cat.category}>
+                      {cat.category} ({cat.material_count} items)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label className="filter-label">Search:</label>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by material name..."
+                  className="form-input"
+                />
+              </div>
+              
+              <div className="filter-info">
+                Showing {filteredItems.length} of {inventoryItems.length} materials
+              </div>
+            </div>
+
+            {filteredItems.length === 0 ? (
+              <p className="empty-state">
+                {searchTerm 
+                  ? `No materials found matching "${searchTerm}"`
+                  : "No materials available in inventory"}
+              </p>
             ) : (
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {inventoryItems.map((item) => (
+              <div className="material-list">
+                {filteredItems.map((item) => (
                   <div
                     key={item.material_id}
                     onClick={() => handleMaterialSelect(item)}
-                    style={{
-                      padding: '15px',
-                      marginBottom: '10px',
-                      backgroundColor: selectedMaterial?.material_id === item.material_id ? '#dc3545' : 'white',
-                      color: selectedMaterial?.material_id === item.material_id ? 'white' : 'black',
-                      borderRadius: '5px',
-                      cursor: 'pointer',
-                      border: '1px solid #ddd',
-                      transition: 'all 0.2s'
-                    }}
+                    className={`material-item ${selectedMaterial?.material_id === item.material_id ? 'selected' : ''}`}
                   >
                     <strong>{item.material_name}</strong>
-                    <div style={{ fontSize: '14px', marginTop: '5px', opacity: 0.9 }}>
+                    <div className="material-details">
                       Category: {item.category}<br />
                       Available: {item.available_quantity} {item.unit}<br />
                       Avg Cost: ₹{item.weighted_avg_cost.toFixed(2)}/{item.unit}<br />
@@ -273,19 +317,19 @@ const MaterialWriteoff = () => {
           </div>
 
           {/* Write-off Form */}
-          <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>Write-off Details</h3>
+          <div className="panel">
+            <h3 className="panel-title">Write-off Details</h3>
             {selectedMaterial ? (
               <form onSubmit={handleSubmit}>
-                <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '5px' }}>
+                <div className="selected-material-info">
                   <strong>Selected Material:</strong><br />
                   {selectedMaterial.material_name}<br />
                   Available: {selectedMaterial.available_quantity} {selectedMaterial.unit}<br />
                   Cost: ₹{selectedMaterial.weighted_avg_cost.toFixed(2)}/{selectedMaterial.unit}
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                <div className="form-group">
+                  <label className="form-label">
                     Write-off Quantity ({selectedMaterial.unit}): *
                   </label>
                   <input
@@ -297,18 +341,18 @@ const MaterialWriteoff = () => {
                     min="0"
                     max={selectedMaterial.available_quantity}
                     required
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-input"
                   />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Write-off Reason: *</label>
+                <div className="form-group">
+                  <label className="form-label">Write-off Reason: *</label>
                   <select
                     name="reason_code"
                     value={writeoffData.reason_code}
                     onChange={handleInputChange}
                     required
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-select"
                   >
                     <option value="">Select Reason</option>
                     {Object.entries(reasonsByCategory).map(([category, reasons]) => (
@@ -323,8 +367,8 @@ const MaterialWriteoff = () => {
                   </select>
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Scrap Recovery Value (₹):</label>
+                <div className="form-group">
+                  <label className="form-label">Scrap Recovery Value (₹):</label>
                   <input
                     type="number"
                     name="scrap_value"
@@ -332,67 +376,57 @@ const MaterialWriteoff = () => {
                     onChange={handleInputChange}
                     step="0.01"
                     min="0"
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-input"
                   />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Write-off Date: *</label>
+                <div className="form-group">
+                  <label className="form-label">Write-off Date: *</label>
                   <input
                     type="date"
                     name="writeoff_date"
                     value={writeoffData.writeoff_date}
                     onChange={handleInputChange}
                     required
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-input"
                   />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Authorized By:</label>
+                <div className="form-group">
+                  <label className="form-label">Authorized By:</label>
                   <input
                     type="text"
                     name="created_by"
                     value={writeoffData.created_by}
                     onChange={handleInputChange}
                     placeholder="Name of person authorizing"
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-input"
                   />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Notes:</label>
+                <div className="form-group">
+                  <label className="form-label">Notes:</label>
                   <textarea
                     name="notes"
                     value={writeoffData.notes}
                     onChange={handleInputChange}
                     rows="3"
-                    style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+                    className="form-textarea"
                   />
                 </div>
 
                 {/* Value Summary */}
                 {writeoffData.quantity && (
-                  <div style={{ 
-                    marginBottom: '15px', 
-                    padding: '15px', 
-                    backgroundColor: '#f8d7da', 
-                    borderRadius: '5px',
-                    border: '1px solid #f5c6cb'
-                  }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+                  <div className="value-summary">
+                    <div className="value-grid">
                       <span>Material Value:</span>
-                      <span style={{ textAlign: 'right' }}>₹{values.total}</span>
+                      <span className="value-amount">₹{values.total}</span>
                       
                       <span>Less: Scrap Recovery:</span>
-                      <span style={{ textAlign: 'right' }}>₹{values.scrap}</span>
+                      <span className="value-amount">₹{values.scrap}</span>
                       
-                      <span style={{ fontWeight: 'bold', paddingTop: '5px', borderTop: '1px solid #dc3545' }}>
-                        Net Loss:
-                      </span>
-                      <span style={{ textAlign: 'right', fontWeight: 'bold', paddingTop: '5px', borderTop: '1px solid #dc3545' }}>
-                        ₹{values.net}
-                      </span>
+                      <span className="value-total">Net Loss:</span>
+                      <span className="value-amount value-total">₹{values.net}</span>
                     </div>
                   </div>
                 )}
@@ -400,23 +434,13 @@ const MaterialWriteoff = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    backgroundColor: loading ? '#6c757d' : '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontSize: '16px',
-                    fontWeight: '600'
-                  }}
+                  className={`submit-button ${loading ? 'disabled' : ''}`}
                 >
                   {loading ? 'Recording...' : 'Record Write-off'}
                 </button>
               </form>
             ) : (
-              <p style={{ textAlign: 'center', color: '#666', marginTop: '50px' }}>
+              <p className="empty-state-center">
                 Select a material from the left to record write-off
               </p>
             )}
@@ -428,60 +452,31 @@ const MaterialWriteoff = () => {
         <div>
           {/* Summary Cards */}
           {summary && (
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr 1fr 1fr', 
-              gap: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '20px', 
-                borderRadius: '8px',
-                textAlign: 'center',
-                border: '1px solid #dee2e6'
-              }}>
-                <div style={{ fontSize: '14px', color: '#6c757d' }}>Total Write-offs</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+            <div className="summary-grid">
+              <div className="summary-card">
+                <div className="summary-label">Total Write-offs</div>
+                <div className="summary-value error">
                   {summary.total_writeoffs}
                 </div>
               </div>
               
-              <div style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '20px', 
-                borderRadius: '8px',
-                textAlign: 'center',
-                border: '1px solid #dee2e6'
-              }}>
-                <div style={{ fontSize: '14px', color: '#6c757d' }}>Total Cost</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+              <div className="summary-card">
+                <div className="summary-label">Total Cost</div>
+                <div className="summary-value error">
                   ₹{summary.total_cost.toFixed(2)}
                 </div>
               </div>
               
-              <div style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '20px', 
-                borderRadius: '8px',
-                textAlign: 'center',
-                border: '1px solid #dee2e6'
-              }}>
-                <div style={{ fontSize: '14px', color: '#6c757d' }}>Scrap Recovered</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+              <div className="summary-card">
+                <div className="summary-label">Scrap Recovered</div>
+                <div className="summary-value success">
                   ₹{summary.total_scrap_recovered.toFixed(2)}
                 </div>
               </div>
               
-              <div style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '20px', 
-                borderRadius: '8px',
-                textAlign: 'center',
-                border: '1px solid #dee2e6'
-              }}>
-                <div style={{ fontSize: '14px', color: '#6c757d' }}>Net Loss</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+              <div className="summary-card">
+                <div className="summary-label">Net Loss</div>
+                <div className="summary-value error">
                   ₹{summary.total_net_loss.toFixed(2)}
                 </div>
               </div>
@@ -489,53 +484,47 @@ const MaterialWriteoff = () => {
           )}
 
           {/* History Table */}
-          <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#495057' }}>Write-off History</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+          <div className="panel">
+            <h3 className="panel-title">Write-off History</h3>
+            <div className="table-container">
+              <table className="history-table">
                 <thead>
-                  <tr style={{ backgroundColor: '#dc3545', color: 'white' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Date</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Material</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Category</th>
-                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Quantity</th>
-                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Reason</th>
-                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Total Cost</th>
-                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Scrap Value</th>
-                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Net Loss</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Authorized By</th>
+                  <tr>
+                    <th>Date</th>
+                    <th>Material</th>
+                    <th>Category</th>
+                    <th className="text-center">Quantity</th>
+                    <th className="text-center">Reason</th>
+                    <th className="text-right">Total Cost</th>
+                    <th className="text-right">Scrap Value</th>
+                    <th className="text-right">Net Loss</th>
+                    <th>Authorized By</th>
                   </tr>
                 </thead>
                 <tbody>
                   {Array.isArray(writeoffHistory) && writeoffHistory.map((writeoff) => (
-                    <tr key={writeoff.writeoff_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                      <td style={{ padding: '12px' }}>{writeoff.writeoff_date_display}</td>
-                      <td style={{ padding: '12px' }}>{writeoff.material_name}</td>
-                      <td style={{ padding: '12px' }}>{writeoff.category}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                    <tr key={writeoff.writeoff_id}>
+                      <td>{writeoff.writeoff_date_display}</td>
+                      <td>{writeoff.material_name}</td>
+                      <td>{writeoff.category}</td>
+                      <td className="text-center">
                         {writeoff.quantity} {writeoff.unit}
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '4px 8px',
-                          borderRadius: '3px',
-                          fontSize: '13px',
-                          backgroundColor: '#e9ecef',
-                          color: '#495057'
-                        }}>
+                      <td className="text-center">
+                        <span className="reason-badge">
                           {writeoff.reason_description || writeoff.reason_code}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <td className="text-right">
                         ₹{writeoff.total_cost.toFixed(2)}
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <td className="text-right">
                         ₹{writeoff.scrap_value.toFixed(2)}
                       </td>
-                      <td style={{ padding: '12px', textAlign: 'right', color: '#dc3545', fontWeight: 'bold' }}>
+                      <td className="text-right net-loss">
                         ₹{writeoff.net_loss.toFixed(2)}
                       </td>
-                      <td style={{ padding: '12px' }}>{writeoff.created_by || '-'}</td>
+                      <td>{writeoff.created_by || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -549,3 +538,6 @@ const MaterialWriteoff = () => {
 };
 
 export default MaterialWriteoff;
+
+/* End of MaterialWriteoff Component v2.0.0 - August 8, 2025 */
+```
