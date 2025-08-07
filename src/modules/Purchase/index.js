@@ -1,9 +1,10 @@
 // File Path: puvi-frontend/src/modules/Purchase/index.js
-// Purchase Module with Cost Management Integration
-// Added: Seed Unloading and Transport-Seed Inward cost elements with override capability
+// Purchase Module with Cost Management Integration - Fixed UI Version
+// Session 3: UI issues resolved with CostElementRow component
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import CostElementRow from '../../components/CostManagement/CostElementRow';
 import './Purchase.css';
 
 const Purchase = () => {
@@ -35,7 +36,7 @@ const Purchase = () => {
     Nos: { percentage: 20, items: [] }
   });
   
-  // NEW - Cost Management States
+  // Cost Management States
   const [costElements, setCostElements] = useState({
     seedUnloading: { 
       element_id: null, 
@@ -63,16 +64,16 @@ const Purchase = () => {
 
   useEffect(() => {
     fetchSuppliers();
-    fetchCostElementsMaster(); // NEW - Fetch cost elements on load
+    fetchCostElementsMaster();
   }, []);
 
   useEffect(() => {
     // Recalculate transport/handling allocation when items or percentages change
     allocateCharges();
-    calculateAdditionalCosts(); // NEW - Calculate additional costs
+    calculateAdditionalCosts();
   }, [items, invoiceData.transport_cost, invoiceData.handling_charges, uomGroups]);
 
-  // NEW - Fetch cost elements from master
+  // Fetch cost elements from master
   const fetchCostElementsMaster = async () => {
     try {
       const response = await api.costManagement.getCostElementsByStage('purchase');
@@ -86,7 +87,7 @@ const Purchase = () => {
         
         // Find transport inward element
         const transportElement = elements.find(e => 
-          e.element_name === 'Transport - Seed Inward' || e.element_name.includes('Transport') && e.element_name.includes('Inward')
+          e.element_name === 'Transport - Seed Inward' || (e.element_name.includes('Transport') && e.element_name.includes('Inward'))
         );
         
         if (seedUnloadingElement) {
@@ -119,7 +120,7 @@ const Purchase = () => {
     }
   };
 
-  // NEW - Calculate additional costs based on quantities
+  // Calculate additional costs based on quantities
   const calculateAdditionalCosts = () => {
     // Calculate total quantity for seed items (kg based)
     let totalKgQuantity = 0;
@@ -153,7 +154,7 @@ const Purchase = () => {
     }));
   };
 
-  // NEW - Handle cost override changes
+  // Handle cost override changes
   const handleCostOverrideChange = (costType, field, value) => {
     setCostOverrides(prev => {
       const updated = { ...prev };
@@ -339,7 +340,7 @@ const Purchase = () => {
     const transportCost = parseFloat(invoiceData.transport_cost) || 0;
     const handlingCharges = parseFloat(invoiceData.handling_charges) || 0;
     
-    // NEW - Include additional cost elements
+    // Include additional cost elements
     const seedUnloadingCost = costOverrides.seedUnloading.enabled ? costOverrides.seedUnloading.total : 0;
     const transportInwardCost = costOverrides.transportInward.enabled ? costOverrides.transportInward.total : 0;
     const additionalCosts = seedUnloadingCost + transportInwardCost;
@@ -351,9 +352,9 @@ const Purchase = () => {
       totalGst: totalGst.toFixed(2),
       transportCost: transportCost.toFixed(2),
       handlingCharges: handlingCharges.toFixed(2),
-      additionalCosts: additionalCosts.toFixed(2), // NEW
-      seedUnloadingCost: seedUnloadingCost.toFixed(2), // NEW
-      transportInwardCost: transportInwardCost.toFixed(2), // NEW
+      additionalCosts: additionalCosts.toFixed(2),
+      seedUnloadingCost: seedUnloadingCost.toFixed(2),
+      transportInwardCost: transportInwardCost.toFixed(2),
       grandTotal: grandTotal.toFixed(2)
     };
   };
@@ -380,7 +381,7 @@ const Purchase = () => {
     setMessage('');
 
     try {
-      // NEW - Prepare cost overrides for submission
+      // Prepare cost overrides for submission
       const costOverrideData = [];
       
       if (costOverrides.seedUnloading.enabled) {
@@ -415,12 +416,12 @@ const Purchase = () => {
           transport_charges: parseFloat(item.transport_charges),
           handling_charges: parseFloat(item.handling_charges)
         })),
-        cost_overrides: costOverrideData // NEW - Include cost overrides
+        cost_overrides: costOverrideData
       };
 
       const response = await api.purchase.addPurchase(payload);
       
-      // NEW - Log cost overrides if any were applied
+      // Log cost overrides if any were applied
       if (costOverrideData.length > 0 && response.purchase_id) {
         try {
           // Save cost override audit trail
@@ -472,7 +473,7 @@ Items: ${response.items_count}`);
       }]);
       setSelectedSupplier('');
       
-      // NEW - Reset cost overrides
+      // Reset cost overrides
       setCostOverrides({
         seedUnloading: { enabled: false, rate: '', quantity: 0, total: 0 },
         transportInward: { enabled: false, rate: '', quantity: 0, total: 0 }
@@ -498,20 +499,18 @@ Items: ${response.items_count}`);
   return (
     <div className="purchase-module">
       <div className="module-header">
-        <h2>Purchase Entry - Multi Item</h2>
-        <div className="header-actions">
-          <button 
-            className="view-history-btn"
-            onClick={() => {
-              setShowHistory(!showHistory);
-              if (!showHistory && purchaseHistory.length === 0) {
-                fetchPurchaseHistory();
-              }
-            }}
-          >
-            {showHistory ? 'Hide History' : 'View History'}
-          </button>
-        </div>
+        <h2 className="module-title">Purchase Entry – Multi Item</h2>
+        <button 
+          className="btn-secondary"
+          onClick={() => {
+            setShowHistory(!showHistory);
+            if (!showHistory && purchaseHistory.length === 0) {
+              fetchPurchaseHistory();
+            }
+          }}
+        >
+          {showHistory ? 'Hide History' : 'View History'}
+        </button>
       </div>
 
       {message && (
@@ -522,12 +521,12 @@ Items: ${response.items_count}`);
 
       {!showHistory ? (
         <form onSubmit={handleSubmit} className="purchase-form">
-          {/* Header Section */}
-          <div className="form-section">
-            <h3>Invoice Details</h3>
-            <div className="form-row">
+          {/* Invoice Details Section */}
+          <div className="form-card">
+            <h3 className="section-title">Invoice Details</h3>
+            <div className="form-grid">
               <div className="form-group">
-                <label>Supplier *</label>
+                <label className="form-label">Supplier *</label>
                 <select 
                   value={selectedSupplier}
                   onChange={handleSupplierChange}
@@ -546,7 +545,7 @@ Items: ${response.items_count}`);
               </div>
               
               <div className="form-group">
-                <label>Invoice Reference *</label>
+                <label className="form-label">Invoice Reference *</label>
                 <input
                   type="text"
                   name="invoice_ref"
@@ -559,7 +558,7 @@ Items: ${response.items_count}`);
               </div>
 
               <div className="form-group">
-                <label>Purchase Date *</label>
+                <label className="form-label">Purchase Date *</label>
                 <input
                   type="date"
                   name="purchase_date"
@@ -573,10 +572,10 @@ Items: ${response.items_count}`);
           </div>
 
           {/* Items Section */}
-          <div className="form-section">
+          <div className="form-card">
             <div className="section-header">
-              <h3>Items</h3>
-              <button type="button" onClick={addItem} className="add-button">
+              <h3 className="section-title">Items</h3>
+              <button type="button" onClick={addItem} className="btn-primary">
                 + Add Item
               </button>
             </div>
@@ -585,17 +584,17 @@ Items: ${response.items_count}`);
               <table className="items-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '25%' }}>Material</th>
-                    <th style={{ width: '10%' }}>Qty</th>
-                    <th style={{ width: '8%' }}>Unit</th>
-                    <th style={{ width: '10%' }}>Rate</th>
-                    <th style={{ width: '12%' }}>Amount</th>
-                    <th style={{ width: '8%' }}>GST%</th>
-                    <th style={{ width: '10%' }}>GST Amt</th>
-                    <th style={{ width: '8%' }}>Transport</th>
-                    <th style={{ width: '8%' }}>Handling</th>
-                    <th style={{ width: '12%' }}>Total</th>
-                    <th style={{ width: '5%' }}></th>
+                    <th>Material</th>
+                    <th>Quantity</th>
+                    <th>Unit</th>
+                    <th>Rate</th>
+                    <th>Amount</th>
+                    <th>GST %</th>
+                    <th>GST Amount</th>
+                    <th>Transport</th>
+                    <th>Handling</th>
+                    <th>Total</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -604,7 +603,6 @@ Items: ${response.items_count}`);
                     const taxableAmount = amount + (parseFloat(item.transport_charges) || 0) + (parseFloat(item.handling_charges) || 0);
                     const gstAmount = taxableAmount * (parseFloat(item.gst_rate) || 0) / 100;
                     const total = taxableAmount + gstAmount;
-                    const material = materials.find(m => m.material_id === parseInt(item.material_id));
                     
                     return (
                       <tr key={index}>
@@ -633,7 +631,7 @@ Items: ${response.items_count}`);
                             className="form-control text-right"
                           />
                         </td>
-                        <td className="unit">{getMaterialUnit(item.material_id)}</td>
+                        <td className="unit-cell">{getMaterialUnit(item.material_id)}</td>
                         <td>
                           <input
                             type="number"
@@ -643,7 +641,7 @@ Items: ${response.items_count}`);
                             className="form-control text-right"
                           />
                         </td>
-                        <td className="amount">₹{amount.toFixed(2)}</td>
+                        <td className="amount-cell">₹{amount.toFixed(2)}</td>
                         <td>
                           <input
                             type="number"
@@ -652,7 +650,7 @@ Items: ${response.items_count}`);
                             className="form-control readonly text-center"
                           />
                         </td>
-                        <td className="amount">₹{gstAmount.toFixed(2)}</td>
+                        <td className="amount-cell">₹{gstAmount.toFixed(2)}</td>
                         <td>
                           <input
                             type="number"
@@ -671,13 +669,13 @@ Items: ${response.items_count}`);
                             className="form-control text-right"
                           />
                         </td>
-                        <td className="amount total">₹{total.toFixed(2)}</td>
+                        <td className="total-cell">₹{total.toFixed(2)}</td>
                         <td>
                           {items.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeItem(index)}
-                              className="remove-button"
+                              className="btn-remove"
                             >
                               ×
                             </button>
@@ -691,12 +689,12 @@ Items: ${response.items_count}`);
             </div>
           </div>
 
-          {/* Transport & Handling Allocation */}
-          <div className="form-section">
-            <h3>Transport & Handling Charges</h3>
-            <div className="form-row">
+          {/* Transport & Handling Charges */}
+          <div className="form-card">
+            <h3 className="section-title">Transport & Handling Charges</h3>
+            <div className="form-grid-2col">
               <div className="form-group">
-                <label>Total Transport Cost (₹)</label>
+                <label className="form-label">Total Transport Cost (₹)</label>
                 <input
                   type="number"
                   name="transport_cost"
@@ -708,7 +706,7 @@ Items: ${response.items_count}`);
               </div>
               
               <div className="form-group">
-                <label>Total Handling Charges (₹)</label>
+                <label className="form-label">Total Handling Charges (₹)</label>
                 <input
                   type="number"
                   name="handling_charges"
@@ -722,10 +720,10 @@ Items: ${response.items_count}`);
 
             {(parseFloat(invoiceData.transport_cost) > 0 || parseFloat(invoiceData.handling_charges) > 0) && (
               <div className="allocation-settings">
-                <h4>UOM Group Allocation</h4>
+                <h4 className="subsection-title">UOM Group Allocation</h4>
                 <div className="uom-groups">
                   <div className="uom-group">
-                    <label>Weight (kg)</label>
+                    <label className="uom-label">Weight (kg)</label>
                     <div className="input-group">
                       <input
                         type="number"
@@ -739,7 +737,7 @@ Items: ${response.items_count}`);
                     </div>
                   </div>
                   <div className="uom-group">
-                    <label>Volume (L)</label>
+                    <label className="uom-label">Volume (L)</label>
                     <div className="input-group">
                       <input
                         type="number"
@@ -753,7 +751,7 @@ Items: ${response.items_count}`);
                     </div>
                   </div>
                   <div className="uom-group">
-                    <label>Count (Nos)</label>
+                    <label className="uom-label">Count (Nos)</label>
                     <div className="input-group">
                       <input
                         type="number"
@@ -766,7 +764,7 @@ Items: ${response.items_count}`);
                       <span className="input-addon">%</span>
                     </div>
                   </div>
-                  <div className={`total-percentage ${totalPercentage !== 100 ? 'error' : ''}`}>
+                  <div className={`total-percentage ${totalPercentage !== 100 ? 'error' : 'success'}`}>
                     Total: {totalPercentage}%
                   </div>
                 </div>
@@ -777,209 +775,132 @@ Items: ${response.items_count}`);
             )}
           </div>
 
-          {/* NEW - Additional Cost Elements Section */}
-          <div className="form-section" style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px' }}>
-            <h3>Additional Cost Elements</h3>
+          {/* Additional Cost Elements Section - Using CostElementRow */}
+          <div className="form-card">
+            <h3 className="section-title">Additional Cost Elements</h3>
             
-            {/* Seed Unloading Cost */}
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'white', borderRadius: '5px', border: '1px solid #dee2e6' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <input
-                  type="checkbox"
-                  id="seedUnloadingCheck"
-                  checked={costOverrides.seedUnloading.enabled}
-                  onChange={(e) => handleCostOverrideChange('seedUnloading', 'enabled', e.target.checked)}
-                  style={{ marginRight: '10px' }}
-                />
-                <label htmlFor="seedUnloadingCheck" style={{ margin: 0, fontWeight: '600', fontSize: '16px' }}>
-                  ☑ Seed Unloading (Per Bag)
-                </label>
-              </div>
+            <div className="cost-elements-container">
+              <CostElementRow
+                elementName="Seed Unloading"
+                masterRate={costElements.seedUnloading.default_rate}
+                unitType="Per Bag"
+                quantity={costOverrides.seedUnloading.quantity}
+                enabled={costOverrides.seedUnloading.enabled}
+                category="Labor"
+                overrideRate={costOverrides.seedUnloading.rate}
+                onToggle={(enabled) => handleCostOverrideChange('seedUnloading', 'enabled', enabled)}
+                onOverrideChange={(rate) => handleCostOverrideChange('seedUnloading', 'rate', rate)}
+                icon="📦"
+                helpText="Cost for unloading seed bags from transport vehicles"
+                variant="default"
+              />
               
-              {costOverrides.seedUnloading.enabled && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate</label>
-                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
-                      ₹{costElements.seedUnloading.default_rate}/bag
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate</label>
-                    <input
-                      type="number"
-                      placeholder={costElements.seedUnloading.default_rate.toString()}
-                      value={costOverrides.seedUnloading.rate}
-                      onChange={(e) => handleCostOverrideChange('seedUnloading', 'rate', e.target.value)}
-                      step="0.01"
-                      style={{
-                        width: '100%',
-                        padding: '5px',
-                        border: '1px solid #ced4da',
-                        borderRadius: '4px',
-                        fontWeight: costOverrides.seedUnloading.rate ? 'bold' : 'normal'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Bags</label>
-                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
-                      {costOverrides.seedUnloading.quantity}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Cost</label>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
-                      ₹{costOverrides.seedUnloading.total.toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Transport - Seed Inward Cost */}
-            <div style={{ padding: '15px', backgroundColor: 'white', borderRadius: '5px', border: '1px solid #dee2e6' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <input
-                  type="checkbox"
-                  id="transportInwardCheck"
-                  checked={costOverrides.transportInward.enabled}
-                  onChange={(e) => handleCostOverrideChange('transportInward', 'enabled', e.target.checked)}
-                  style={{ marginRight: '10px' }}
-                />
-                <label htmlFor="transportInwardCheck" style={{ margin: 0, fontWeight: '600', fontSize: '16px' }}>
-                  ☑ Transport - Seed Inward (Per Kg)
-                </label>
-              </div>
-              
-              {costOverrides.transportInward.enabled && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginTop: '10px' }}>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Master Rate</label>
-                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
-                      ₹{costElements.transportInward.default_rate}/kg
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Override Rate</label>
-                    <input
-                      type="number"
-                      placeholder={costElements.transportInward.default_rate.toString()}
-                      value={costOverrides.transportInward.rate}
-                      onChange={(e) => handleCostOverrideChange('transportInward', 'rate', e.target.value)}
-                      step="0.01"
-                      style={{
-                        width: '100%',
-                        padding: '5px',
-                        border: '1px solid #ced4da',
-                        borderRadius: '4px',
-                        fontWeight: costOverrides.transportInward.rate ? 'bold' : 'normal'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Quantity (kg)</label>
-                    <div style={{ fontSize: '16px', fontWeight: '500' }}>
-                      {costOverrides.transportInward.quantity.toFixed(2)}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '14px', color: '#6c757d' }}>Total Cost</label>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
-                      ₹{costOverrides.transportInward.total.toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              )}
+              <CostElementRow
+                elementName="Transport - Seed Inward"
+                masterRate={costElements.transportInward.default_rate}
+                unitType="Per Kg"
+                quantity={costOverrides.transportInward.quantity}
+                enabled={costOverrides.transportInward.enabled}
+                category="Transport"
+                overrideRate={costOverrides.transportInward.rate}
+                onToggle={(enabled) => handleCostOverrideChange('transportInward', 'enabled', enabled)}
+                onOverrideChange={(rate) => handleCostOverrideChange('transportInward', 'rate', rate)}
+                icon="🚚"
+                helpText="Transportation cost for bringing seeds to the facility"
+                variant="default"
+              />
             </div>
             
-            {/* Info Note */}
-            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d1ecf1', borderRadius: '5px', fontSize: '14px' }}>
-              <strong>ℹ️ Note:</strong> These additional costs will be added to the landed cost of materials.
-              Override rates if market rates differ from master rates.
+            <div className="cost-info-note">
+              <span className="info-icon">ℹ️</span>
+              <span className="info-text">
+                These additional costs will be added to the landed cost of materials. 
+                Override rates if market rates differ from master rates.
+              </span>
             </div>
           </div>
 
           {/* Summary Section */}
-          <div className="cost-summary">
-            <h3>Invoice Summary</h3>
+          <div className="form-card summary-card">
+            <h3 className="section-title">Invoice Summary</h3>
             <div className="summary-grid">
               <div className="summary-row">
-                <span>Subtotal:</span>
-                <span>₹{totals.subtotal}</span>
+                <span className="summary-label">Subtotal:</span>
+                <span className="summary-value">₹{totals.subtotal}</span>
               </div>
               <div className="summary-row">
-                <span>Total GST:</span>
-                <span>₹{totals.totalGst}</span>
+                <span className="summary-label">Total GST:</span>
+                <span className="summary-value">₹{totals.totalGst}</span>
               </div>
               <div className="summary-row">
-                <span>Transport Charges:</span>
-                <span>₹{totals.transportCost}</span>
+                <span className="summary-label">Transport Charges:</span>
+                <span className="summary-value">₹{totals.transportCost}</span>
               </div>
               <div className="summary-row">
-                <span>Handling Charges:</span>
-                <span>₹{totals.handlingCharges}</span>
+                <span className="summary-label">Handling Charges:</span>
+                <span className="summary-value">₹{totals.handlingCharges}</span>
               </div>
-              {/* NEW - Show additional costs in summary */}
               {costOverrides.seedUnloading.enabled && (
                 <div className="summary-row">
-                  <span>Seed Unloading:</span>
-                  <span>₹{totals.seedUnloadingCost}</span>
+                  <span className="summary-label">Seed Unloading:</span>
+                  <span className="summary-value">₹{totals.seedUnloadingCost}</span>
                 </div>
               )}
               {costOverrides.transportInward.enabled && (
                 <div className="summary-row">
-                  <span>Transport - Seed Inward:</span>
-                  <span>₹{totals.transportInwardCost}</span>
+                  <span className="summary-label">Transport - Seed Inward:</span>
+                  <span className="summary-value">₹{totals.transportInwardCost}</span>
                 </div>
               )}
               <div className="summary-row total">
-                <span>Grand Total:</span>
-                <span>₹{totals.grandTotal}</span>
+                <span className="summary-label">Grand Total:</span>
+                <span className="summary-value">₹{totals.grandTotal}</span>
               </div>
             </div>
           </div>
 
           <div className="form-actions">
-            <button type="submit" disabled={loading || totalPercentage !== 100} className="submit-button">
+            <button type="submit" disabled={loading || totalPercentage !== 100} className="btn-submit">
               {loading ? 'Saving Purchase...' : 'Save Purchase'}
             </button>
           </div>
         </form>
       ) : (
         <div className="purchase-history">
-          <h3>Purchase History</h3>
-          <div className="history-table-container">
-            <table className="history-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Invoice</th>
-                  <th>Supplier</th>
-                  <th>Items</th>
-                  <th>Total</th>
-                  <th>Traceable Code</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchaseHistory.map((purchase) => (
-                  <tr key={purchase.purchase_id}>
-                    <td>{formatDate(purchase.purchase_date)}</td>
-                    <td>{purchase.invoice_ref}</td>
-                    <td>{purchase.supplier_name}</td>
-                    <td>{purchase.item_count}</td>
-                    <td>₹{purchase.total_cost.toFixed(2)}</td>
-                    <td className="traceable-code">
-                      {purchase.traceable_code || '-'}
-                    </td>
-                    <td>
-                      <button className="view-details-btn">View</button>
-                    </td>
+          <div className="form-card">
+            <h3 className="section-title">Purchase History</h3>
+            <div className="history-table-container">
+              <table className="history-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Invoice</th>
+                    <th>Supplier</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Traceable Code</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {purchaseHistory.map((purchase) => (
+                    <tr key={purchase.purchase_id}>
+                      <td>{formatDate(purchase.purchase_date)}</td>
+                      <td>{purchase.invoice_ref}</td>
+                      <td>{purchase.supplier_name}</td>
+                      <td>{purchase.item_count}</td>
+                      <td>₹{purchase.total_cost.toFixed(2)}</td>
+                      <td className="traceable-code">
+                        {purchase.traceable_code || '-'}
+                      </td>
+                      <td>
+                        <button className="btn-view">View</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
