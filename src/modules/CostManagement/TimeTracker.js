@@ -1,5 +1,6 @@
 // Time Tracker Component for PUVI Oil Manufacturing System
 // File Path: puvi-frontend/src/modules/CostManagement/TimeTracker.js
+// Purpose: Track crushing time with proper datetime format for backend
 
 import React, { useState, useEffect } from 'react';
 
@@ -42,12 +43,16 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
 
     setDuration(calculatedDuration);
 
-    // Pass data to parent
+    // Pass data to parent with fixed datetime format
     if (onTimeCalculated) {
+      // FIX: Replace 'T' with space for backend compatibility
+      const formattedStartDateTime = startDateTime.replace('T', ' ');
+      const formattedEndDateTime = endDateTime.replace('T', ' ');
+      
       onTimeCalculated({
         batch_id: batchId,
-        start_datetime: startDateTime,
-        end_datetime: endDateTime,
+        start_datetime: formattedStartDateTime,  // Fixed format: "2025-08-07 10:30"
+        end_datetime: formattedEndDateTime,      // Fixed format: "2025-08-07 15:45"
         actual_hours: calculatedDuration.actual_hours,
         rounded_hours: calculatedDuration.rounded_hours,
         operator_name: operatorName,
@@ -71,6 +76,33 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Handle datetime change with validation
+  const handleStartDateTimeChange = (e) => {
+    setStartDateTime(e.target.value);
+  };
+
+  const handleEndDateTimeChange = (e) => {
+    setEndDateTime(e.target.value);
+  };
+
+  // Handle operator name change
+  const handleOperatorNameChange = (e) => {
+    setOperatorName(e.target.value);
+    // Recalculate to update parent with new operator name
+    if (startDateTime && endDateTime) {
+      calculateDuration();
+    }
+  };
+
+  // Handle notes change
+  const handleNotesChange = (e) => {
+    setNotes(e.target.value);
+    // Recalculate to update parent with new notes
+    if (startDateTime && endDateTime) {
+      calculateDuration();
+    }
   };
 
   const styles = {
@@ -131,6 +163,14 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
       marginBottom: '15px',
       color: '#856404'
     },
+    successBox: {
+      padding: '10px',
+      backgroundColor: '#d4edda',
+      borderRadius: '4px',
+      marginBottom: '10px',
+      color: '#155724',
+      fontSize: '13px'
+    },
     costBreakdown: {
       marginTop: '10px',
       paddingTop: '10px',
@@ -154,12 +194,27 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
       fontSize: '12px',
       color: '#6c757d',
       marginTop: '5px'
+    },
+    infoBox: {
+      padding: '10px',
+      backgroundColor: '#e9ecef',
+      borderRadius: '4px',
+      fontSize: '14px',
+      color: '#6c757d'
     }
   };
 
   return (
     <div style={styles.container}>
       <h4 style={styles.title}>⏱️ Crushing Time Tracking</h4>
+      
+      {/* Success message for datetime format */}
+      {startDateTime && endDateTime && (
+        <div style={styles.successBox}>
+          ✅ DateTime format validated - Backend will receive: 
+          {' '}{startDateTime.replace('T', ' ')} to {endDateTime.replace('T', ' ')}
+        </div>
+      )}
       
       <div style={styles.grid}>
         <div style={styles.formGroup}>
@@ -170,11 +225,13 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
             type="datetime-local"
             style={styles.input}
             value={startDateTime}
-            onChange={(e) => setStartDateTime(e.target.value)}
+            onChange={handleStartDateTimeChange}
           />
           {startDateTime && (
             <div style={styles.helpText}>
-              {formatDateTime(startDateTime)}
+              Display: {formatDateTime(startDateTime)}
+              <br />
+              Backend format: {startDateTime.replace('T', ' ')}
             </div>
           )}
         </div>
@@ -187,12 +244,14 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
             type="datetime-local"
             style={styles.input}
             value={endDateTime}
-            onChange={(e) => setEndDateTime(e.target.value)}
+            onChange={handleEndDateTimeChange}
             min={startDateTime}
           />
           {endDateTime && (
             <div style={styles.helpText}>
-              {formatDateTime(endDateTime)}
+              Display: {formatDateTime(endDateTime)}
+              <br />
+              Backend format: {endDateTime.replace('T', ' ')}
             </div>
           )}
         </div>
@@ -221,19 +280,19 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
           {showCostBreakdown && (
             <div style={styles.costBreakdown}>
               <div style={{ fontWeight: '600', marginBottom: '8px' }}>
-                💰 Time-Based Costs:
+                💰 Time-Based Costs (Auto-calculated):
               </div>
               <div style={styles.costRow}>
                 <span>Crushing Labour ({duration.rounded_hours} hrs × ₹150):</span>
                 <span>₹{duration.crushing_labour_cost.toFixed(2)}</span>
               </div>
               <div style={styles.costRow}>
-                <span>Electricity ({duration.rounded_hours} hrs × ₹75):</span>
+                <span>Electricity - Crushing ({duration.rounded_hours} hrs × ₹75):</span>
                 <span>₹{duration.electricity_cost.toFixed(2)}</span>
               </div>
               <div style={styles.totalRow}>
                 <span>Total Time-Based Costs:</span>
-                <span>₹{duration.total_time_cost.toFixed(2)}</span>
+                <span style={{ color: '#28a745' }}>₹{duration.total_time_cost.toFixed(2)}</span>
               </div>
             </div>
           )}
@@ -249,7 +308,7 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
             type="text"
             style={styles.input}
             value={operatorName}
-            onChange={(e) => setOperatorName(e.target.value)}
+            onChange={handleOperatorNameChange}
             placeholder="Enter operator name"
           />
         </div>
@@ -261,21 +320,25 @@ const TimeTracker = ({ batchId, onTimeCalculated, showCostBreakdown = true }) =>
           <textarea
             style={styles.textarea}
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any additional notes..."
+            onChange={handleNotesChange}
+            placeholder="Any additional notes about the crushing process..."
           />
         </div>
       </div>
 
       {!batchId && (
-        <div style={{ 
-          padding: '10px', 
-          backgroundColor: '#e9ecef', 
-          borderRadius: '4px',
-          fontSize: '14px',
-          color: '#6c757d'
-        }}>
-          ℹ️ Time tracking will be saved when batch is created
+        <div style={styles.infoBox}>
+          ℹ️ Time tracking will be saved automatically when batch is created
+          <br />
+          📌 DateTime format is automatically converted for backend compatibility
+        </div>
+      )}
+
+      {batchId && (
+        <div style={styles.infoBox}>
+          ℹ️ Time tracking for Batch ID: {batchId}
+          <br />
+          📌 Data will be saved in proper format (YYYY-MM-DD HH:MM)
         </div>
       )}
     </div>
